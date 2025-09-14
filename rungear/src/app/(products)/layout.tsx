@@ -1,4 +1,3 @@
-// src/app/(products)/layout.tsx  (hoặc layout bạn đang dùng)
 import Link from "next/link";
 import { supabaseServer } from "@/libs/db/supabase/supabase-server";
 import SignOutButton from "@/components/auth/SignOutButton";
@@ -37,8 +36,8 @@ export default async function ProductsGroupLayout({ children }: { children: Reac
             <div className="flex flex-row items-center gap-2 shrink-0">
               {isAdmin && (
                 <Link
-                  href="/admin"           // nếu admin page ở /products/admin thì chỉnh lại cho khớp
-                  className="px-3 py-1.5 rounded-md text-sm font-medium bg-orange-500 text-white hover:bg-orange-600"
+                  href="/admin"        
+                  className="btn-vip me-2"
                 >
                   Admin manager
                 </Link>

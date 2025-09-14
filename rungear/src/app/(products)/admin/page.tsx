@@ -20,8 +20,8 @@ export default async function AdminPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
-      <h1 className="text-2xl font-semibold mb-4">Admin</h1>
-      <p>Chào {user.email}. Bạn có quyền admin.</p>
+      <h1 className="text-2xl font-semibold mb-4 text-gray-600">Admin</h1>
+      <p className="text-gray-500">Chào {user.email}. Bạn có quyền admin.</p>
     </div>
   );
 }
