@@ -1,12 +1,14 @@
-// src/app/auth/signin/page.tsx
 import AuthTabs from "@/modules/auth/ui/AuthTabs";
 import AuthForm from "@/modules/auth/ui/AuthForm";
 
-export default function SignInPage({
-  searchParams,
-}: { searchParams?: { registered?: string; error?: string } }) {
-  const justRegistered = searchParams?.registered === "1";
-  const err = searchParams?.error;
+type Props = {
+  searchParams: Promise<{ registered?: string; error?: string; redirect?: string }>;
+};
+
+export default async function SignInPage({ searchParams }: Props) {
+  const sp = await searchParams;                     
+  const justRegistered = sp.registered === "1";
+  const err = sp.error ?? null;
 
   return (
     <div>

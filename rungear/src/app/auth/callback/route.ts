@@ -1,47 +1,52 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
-export async function POST() {
+async function handle(request: Request) {
+  const url = new URL(request.url);
+  const searchParams = url.searchParams;
+
+  // Lấy code từ URL (GET)
+  let code = searchParams.get("code");
+
+  // Một số flow có thể POST về (ít gặp), dự phòng parse từ body
+  if (!code && request.method === "POST") {
+    const ct = request.headers.get("content-type") || "";
+    if (ct.includes("application/x-www-form-urlencoded")) {
+      const form = await request.formData();
+      code = (form.get("code") as string) || null;
+    } else if (ct.includes("application/json")) {
+      const body = await request.json().catch(() => null);
+      code = body?.code ?? null;
+    }
+  }
+
+  const next = searchParams.get("next") || "/home";
+
   const cookieStore = await cookies();
-
-  // client theo session của user (đọc user hiện tại)
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get: (name) => cookieStore.get(name)?.value,
-        set: (name, value, options) => (cookieStore as any).set({ name, value, ...options }),
-        remove: (name, options) => (cookieStore as any).set({ name, value: "", ...options, maxAge: 0 }),
+        get: (name: string) => cookieStore.get(name)?.value,
+        set: (name: string, value: string, options: CookieOptions) =>
+          (cookieStore as any).set({ name, value, ...options }),
+        remove: (name: string, options: CookieOptions) =>
+          (cookieStore as any).set({ name, value: "", ...options, maxAge: 0 }),
       },
     }
   );
 
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return NextResponse.json({ ok: false }, { status: 401 });
-
-  const allow = (process.env.ADMIN_EMAILS || "")
-    .split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
-
-  if (allow.includes((user.email || "").toLowerCase())) {
-    // service role: cập nhật app_metadata.role = 'admin'
-    const admin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-
-    const { error: upErr } = await admin.auth.admin.updateUserById(user.id, {
-      app_metadata: { ...(user.app_metadata || {}), role: "admin" },
-    });
-    if (upErr) return NextResponse.json({ ok: false, error: upErr.message }, { status: 500 });
-
-    // đồng bộ profiles.role = 'admin'
-    await admin.from("profiles")
-      .update({ role: "admin" })
-      .eq("id", user.id);
+  if (code) {
+    await supabase.auth.exchangeCodeForSession(code);
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.redirect(new URL(next, request.url));
 }
+
+export async function GET(request: Request) { return handle(request); }
+export async function POST(request: Request) { return handle(request); }
+
+// Tránh cache cho route callback
+export const dynamic = "force-dynamic";
