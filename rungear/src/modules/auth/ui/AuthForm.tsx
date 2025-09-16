@@ -12,7 +12,8 @@ function humanize(message?: string) {
     return "Sai email hoặc mật khẩu.";
   if (m.includes("email provider disabled"))
     return "Email/Password đang bị tắt trong Supabase. Hãy bật Provider Email.";
-  if (m.includes("captcha")) return "Captcha đang bật. Hãy tắt Captcha hoặc tích hợp hCaptcha.";
+  if (m.includes("captcha"))
+    return "Captcha đang bật. Hãy tắt Captcha hoặc tích hợp hCaptcha.";
   return message || "Có lỗi xảy ra.";
 }
 
@@ -52,7 +53,9 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
 
           // Nếu dự án tắt email confirmation -> Supabase trả session ngay
           if (data.session) {
-            await fetch("/api/auth/ensure-admin", { method: "POST" }).catch(() => {});
+            await fetch("/api/auth/ensure-admin", { method: "POST" }).catch(
+              () => {}
+            );
             await sb.auth.refreshSession();
             router.replace(redirectTo);
             router.refresh();
@@ -70,7 +73,9 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
         const { error } = await sb.auth.signInWithPassword({ email, password });
         if (error) throw error;
 
-        await fetch("/api/auth/ensure-admin", { method: "POST" }).catch(() => {});
+        await fetch("/api/auth/ensure-admin", { method: "POST" }).catch(
+          () => {}
+        );
         await sb.auth.refreshSession();
 
         router.replace(redirectTo); // → về Home
@@ -82,11 +87,11 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
     });
   }
 
-  // Giữ Google login như bạn yêu cầu
   async function signInWithGoogle() {
     const sb = supabaseBrowser();
     const origin = window.location.origin;
-    const next = new URLSearchParams(window.location.search).get("redirect") || "/home";
+    const next =
+      new URLSearchParams(window.location.search).get("redirect") || "/home";
 
     await sb.auth.signInWithOAuth({
       provider: "google",
@@ -135,8 +140,11 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
             >
               Gửi lại email xác nhận
             </button>
-            <a href="/auth/signin" className="text-emerald-700 underline underline-offset-2">
-              Đã xác nhận?  Đăng nhập
+            <a
+              href="/auth/signin"
+              className="text-emerald-700 underline underline-offset-2"
+            >
+              Đã xác nhận? Đăng nhập
             </a>
           </div>
         </div>
@@ -187,7 +195,11 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
         disabled={pending}
         className="w-full h-10 rounded-full bg-gray-900 hover:bg-black text-white transition"
       >
-        {pending ? "Đang xử lý..." : mode === "signin" ? "Đăng nhập" : "Đăng ký"}
+        {pending
+          ? "Đang xử lý..."
+          : mode === "signin"
+          ? "Đăng nhập"
+          : "Đăng ký"}
       </button>
 
       {msg && (

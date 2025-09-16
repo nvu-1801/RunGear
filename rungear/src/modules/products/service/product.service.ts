@@ -80,7 +80,7 @@ export function productImageUrl(p: Product) {
   const path = p.images?.[0];
   if (!path) return null;
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  return `${base}/storage/v1/object/public/products/${encodeURIComponent(path)}`;
+  return `${base}/storage/v1/object/public//${encodeURIComponent(path)}`;
 }
 
 export async function getProductBySlug(slug: string) {

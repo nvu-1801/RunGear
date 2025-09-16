@@ -12,15 +12,15 @@ export type Product = {
 export function productImageUrl(p: Pick<Product, "images">) {
   const path = p.images?.[0];
   return path
-    ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/products/${encodeURIComponent(
-        path
-      )}`
+    ? `${
+        process.env.NEXT_PUBLIC_SUPABASE_URL
+      }/storage/v1/object/public//${encodeURIComponent(path)}`
     : null;
 }
 
 /** Convert 1 path trong bucket sang URL public */
 export function imagePathToUrl(path: string) {
-  return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/products/${encodeURIComponent(
-    path
-  )}`;
+  return `${
+    process.env.NEXT_PUBLIC_SUPABASE_URL
+  }/storage/v1/object/public//${encodeURIComponent(path)}`;
 }

@@ -33,7 +33,7 @@ export default function ProductDetailClient({ product }: { product: Product }) {
       {/* Breadcrumb + Prev/Next giả lập */}
       <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
         <div className="space-x-2">
-          <Link href="/products/home" className="hover:underline">Trang chủ</Link>
+          <Link href="/home" className="hover:underline">Trang chủ</Link>
           <span>/</span>
           <span className="text-gray-700 line-clamp-1">{product.name}</span>
         </div>
