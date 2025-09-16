@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { type Product } from "../service/product.service";
+import type { Product } from "../product-public";
 
 type Line = { id: string; name: string; slug: string; price: number; qty: number; image?: string };
 
