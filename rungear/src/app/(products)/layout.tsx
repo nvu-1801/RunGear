@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { supabaseServer } from "@/libs/db/supabase/supabase-server";
 import SignOutButton from "@/components/auth/SignOutButton";
+import CartButton from "@/components/cart/CartButton";
+import CartDrawer from "@/components/cart/CartDrawer";
+import { GlobalLoading } from "@/components/common/GlobalLoading";
 
 export default async function ProductsGroupLayout({
   children,
@@ -25,6 +28,7 @@ export default async function ProductsGroupLayout({
 
   return (
     <div className="min-h-dvh flex flex-col bg-white">
+      <GlobalLoading />
       <header className="sticky top-4 z-50 mx-4 md:mx-6 bg-white/80 backdrop-blur border rounded-xl shadow-sm">
         <div className="max-w-7xl mx-auto px-4">
           <div className="h-20 flex flex-row items-center gap-6">
@@ -123,7 +127,7 @@ export default async function ProductsGroupLayout({
               )}
 
               {/* Cart */}
-              <Link
+              {/* <Link
                 href="//cart"
                 aria-label="Giỏ hàng"
                 className="relative p-2 rounded-md text-orange-500 hover:text-orange-600 hover:bg-orange-50 transition"
@@ -140,13 +144,15 @@ export default async function ProductsGroupLayout({
                   <circle cx="20" cy="21" r="1" />
                   <path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
                 </svg>
-              </Link>
+              </Link> */}
+              <CartButton />
             </div>
           </div>
         </div>
       </header>
 
       <main className="flex-1">{children}</main>
+      <CartDrawer />
       <footer className="border-t py-6 text-center text-sm text-gray-500">
         © {new Date().getFullYear()} Shop
       </footer>

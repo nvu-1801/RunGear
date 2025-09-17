@@ -5,7 +5,7 @@ import ProductDetailClient from "./product-detail.client";
 type Props = { params: { slug: string } }; 
 
 export default async function ProductDetailPage({ params }: Props) {
-  const { slug } = params; 
+  const { slug } = await params; 
 
   try {
     const product = await getProductBySlug(slug);

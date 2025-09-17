@@ -5,9 +5,11 @@ import { useMemo, useState } from "react";
 import type { Product } from "@/modules/products/product-public";   
 import { productImageUrl, imagePathToUrl } from "@/modules/products/product-public"; 
 import { formatPriceVND } from "@/shared/price";
+import { useCart } from "@/modules/cart/cart-store";
 
 export default function ProductDetailClient({ product }: { product: Product }) {
   const images = useMemo(() => product.images ?? [], [product.images]);
+  const { addItem, open } = useCart();
   const [active, setActive] = useState(0);
   const [qty, setQty] = useState(1);
   const [color, setColor] = useState<string | null>(null);
@@ -21,7 +23,16 @@ export default function ProductDetailClient({ product }: { product: Product }) {
   }
 
   function addToCart() {
-    alert(`Đã thêm ${qty} x ${product.name}${color ? ` (${color})` : ""} vào giỏ!`);
+    addItem({
+      id: product.id,
+      slug: product.slug,
+      name: product.name,
+      price: product.price,
+      image: images[active] ? imagePathToUrl(images[active]) : productImageUrl(product),
+      variant: color,
+      qty,
+    });
+    open();
   }
 
   function buyNow() {
