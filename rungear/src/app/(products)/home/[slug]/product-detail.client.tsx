@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import type { Product } from "@/modules/products/product-public";   
-import { productImageUrl, imagePathToUrl } from "@/modules/products/product-public"; 
+import type { Product } from "@/modules/products/model/product-public";
+import {
+  productImageUrl,
+  imagePathToUrl,
+} from "@/modules/products/model/product-public";
 import { formatPriceVND } from "@/shared/price";
 import { useCart } from "@/modules/cart/cart-store";
 
@@ -28,7 +31,9 @@ export default function ProductDetailClient({ product }: { product: Product }) {
       slug: product.slug,
       name: product.name,
       price: product.price,
-      image: images[active] ? imagePathToUrl(images[active]) : productImageUrl(product),
+      image: images[active]
+        ? imagePathToUrl(images[active])
+        : productImageUrl(product),
       variant: color,
       qty,
     });
@@ -44,13 +49,19 @@ export default function ProductDetailClient({ product }: { product: Product }) {
       {/* Breadcrumb + Prev/Next giả lập */}
       <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
         <div className="space-x-2">
-          <Link href="/home" className="hover:underline">Trang chủ</Link>
+          <Link href="/home" className="hover:underline">
+            Trang chủ
+          </Link>
           <span>/</span>
           <span className="text-gray-700 line-clamp-1">{product.name}</span>
         </div>
         <div className="flex items-center gap-4">
-          <button className="hover:underline" onClick={() => history.back()}>← Trước</button>
-          <button className="hover:underline" onClick={() => history.forward()}>Tiếp →</button>
+          <button className="hover:underline" onClick={() => history.back()}>
+            ← Trước
+          </button>
+          <button className="hover:underline" onClick={() => history.forward()}>
+            Tiếp →
+          </button>
         </div>
       </div>
 
@@ -58,13 +69,19 @@ export default function ProductDetailClient({ product }: { product: Product }) {
         {/* Gallery */}
         <div>
           <div className="aspect-square rounded-xl border overflow-hidden bg-white">
-            <img src={mainSrc} alt={product.name} className="w-full h-full object-cover" />
+            <img
+              src={mainSrc}
+              alt={product.name}
+              className="w-full h-full object-cover"
+            />
           </div>
 
           {images.length > 1 && (
             <ul className="mt-3 grid grid-cols-5 gap-2">
               {images.map((img, i) => {
-                const src = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/products/${encodeURIComponent(img)}`;
+                const src = `${
+                  process.env.NEXT_PUBLIC_SUPABASE_URL
+                }/storage/v1/object/public/products/${encodeURIComponent(img)}`;
                 const activeCls = i === active ? "ring-2 ring-black" : "ring-0";
                 return (
                   <li key={i}>
@@ -73,7 +90,11 @@ export default function ProductDetailClient({ product }: { product: Product }) {
                       className={`block aspect-square rounded-lg overflow-hidden border ${activeCls}`}
                       aria-label={`Ảnh ${i + 1}`}
                     >
-                      <img src={src} alt={`${product.name} ${i + 1}`} className="w-full h-full object-cover" />
+                      <img
+                        src={src}
+                        alt={`${product.name} ${i + 1}`}
+                        className="w-full h-full object-cover"
+                      />
                     </button>
                   </li>
                 );
@@ -84,7 +105,9 @@ export default function ProductDetailClient({ product }: { product: Product }) {
 
         {/* Info */}
         <div>
-          <h1 className="text-3xl font-semibold text-gray-900">{product.name}</h1>
+          <h1 className="text-3xl font-semibold text-gray-900">
+            {product.name}
+          </h1>
           <div className="mt-2 text-gray-500">SKU: 0011</div>
 
           <div className="mt-4 text-2xl font-bold text-gray-900">
@@ -114,7 +137,9 @@ export default function ProductDetailClient({ product }: { product: Product }) {
 
           {/* Số lượng */}
           <div className="mt-6">
-            <div className="text-sm text-gray-500 font-medium mb-2">Số lượng *</div>
+            <div className="text-sm text-gray-500 font-medium mb-2">
+              Số lượng *
+            </div>
             <div className="inline-flex items-center border text-gray-500 rounded-md overflow-hidden">
               <button
                 className="px-3 py-1.5 hover:bg-gray-50"
@@ -160,7 +185,9 @@ export default function ProductDetailClient({ product }: { product: Product }) {
               <div className="text-sm font-semibold text-gray-700 mb-2">
                 THÔNG TIN SẢN PHẨM
               </div>
-              <p className="text-sm leading-6 text-gray-700">{product.description}</p>
+              <p className="text-sm leading-6 text-gray-700">
+                {product.description}
+              </p>
             </div>
           )}
         </div>

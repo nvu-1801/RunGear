@@ -1,8 +1,15 @@
-import { getProductBySlug, productImageUrl } from "@/modules/products/service/product.service";
+import {
+  getProductBySlug,
+  productImageUrl,
+} from "@/modules/products/controller/product.service";
 import { formatPriceVND } from "@/shared/price";
 import { AddToCart } from "@/modules/products/ui/AddToCart";
 
-export default async function ProductDetail({ params }: { params: { slug: string } }) {
+export default async function ProductDetail({
+  params,
+}: {
+  params: { slug: string };
+}) {
   const p = await getProductBySlug(params.slug);
 
   return (
