@@ -4,6 +4,7 @@ import SignOutButton from "@/components/auth/SignOutButton";
 import CartButton from "@/components/cart/CartButton";
 import CartDrawer from "@/components/cart/CartDrawer";
 import { GlobalLoading } from "@/components/common/GlobalLoading";
+import AdminDropdown from "@/components/common/AdminDropdown";
 
 export default async function ProductsGroupLayout({
   children,
@@ -75,11 +76,12 @@ export default async function ProductsGroupLayout({
 
             {/* Right */}
             <div className="flex flex-row items-center gap-2 shrink-0">
-              {isAdmin && (
+              {/* {isAdmin && (
                 <Link href="/admin" className="btn-vip me-2">
                   Admin manager
                 </Link>
-              )}
+              )} */}
+              <AdminDropdown isAdmin={isAdmin} />
 
               {/* Search */}
               <form className="relative hidden sm:block">
