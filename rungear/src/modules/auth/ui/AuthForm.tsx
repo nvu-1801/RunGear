@@ -43,7 +43,6 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
             email,
             password,
             options: {
-              // Sau khi user bấm link xác nhận trong email, quay về app để set session
               emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(
                 redirectTo
               )}`,
@@ -51,18 +50,13 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
           });
           if (error) throw error;
 
-          // Nếu dự án tắt email confirmation -> Supabase trả session ngay
           if (data.session) {
-            await fetch("/api/auth/ensure-admin", { method: "POST" }).catch(
-              () => {}
-            );
             await sb.auth.refreshSession();
             router.replace(redirectTo);
             router.refresh();
             return;
           }
 
-          // Ngược lại (bật email confirmation): show thông báo xác nhận
           setConfirmNotice(
             `Đã gửi email xác nhận đến ${email}. Vui lòng kiểm tra hộp thư và bấm vào liên kết để kích hoạt tài khoản.`
           );
@@ -73,12 +67,8 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
         const { error } = await sb.auth.signInWithPassword({ email, password });
         if (error) throw error;
 
-        await fetch("/api/auth/ensure-admin", { method: "POST" }).catch(
-          () => {}
-        );
         await sb.auth.refreshSession();
-
-        router.replace(redirectTo); // → về Home
+        router.replace(redirectTo);
         router.refresh();
       } catch (err: any) {
         setMsg(humanize(err?.message));
@@ -101,7 +91,6 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
     });
   }
 
-  // Gửi lại email xác nhận (nếu bật email confirmation)
   async function resendConfirmEmail() {
     setMsg(null);
     const sb = supabaseBrowser();
@@ -109,7 +98,7 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
     if (error) setMsg(humanize(error.message));
     else setConfirmNotice(`Đã gửi lại email xác nhận đến ${email}.`);
   }
-
+  
   return (
     <form onSubmit={onSubmit} className="space-y-4 text-gray-900">
       {/* Nút OAuth Google (giữ nguyên) */}
