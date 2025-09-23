@@ -2,16 +2,20 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import type { Product } from "@/modules/products/model/product-public";
 import {
+  normalizeImages,
   productImageUrl,
   imagePathToUrl,
+  type Product,
 } from "@/modules/products/model/product-public";
 import { formatPriceVND } from "@/shared/price";
 import { useCart } from "@/modules/cart/cart-store";
 
 export default function ProductDetailClient({ product }: { product: Product }) {
-  const images = useMemo(() => product.images ?? [], [product.images]);
+  const images = useMemo(
+    () => normalizeImages(product.images),
+    [product.images]
+  );
   const { addItem, open } = useCart();
   const [active, setActive] = useState(0);
   const [qty, setQty] = useState(1);
@@ -79,9 +83,7 @@ export default function ProductDetailClient({ product }: { product: Product }) {
           {images.length > 1 && (
             <ul className="mt-3 grid grid-cols-5 gap-2">
               {images.map((img, i) => {
-                const src = `${
-                  process.env.NEXT_PUBLIC_SUPABASE_URL
-                }/storage/v1/object/public/products/${encodeURIComponent(img)}`;
+                const src = imagePathToUrl(img);
                 const activeCls = i === active ? "ring-2 ring-black" : "ring-0";
                 return (
                   <li key={i}>
