@@ -42,7 +42,7 @@ export default async function ProductsGroupLayout({
                 Run Gear
               </div>
               <div className="text-[11px] text-gray-500">
-                Phong cách & cá tính
+                Phong cách & cá tính 
               </div>
             </Link>
 
