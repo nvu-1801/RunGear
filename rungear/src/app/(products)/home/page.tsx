@@ -1,8 +1,8 @@
 import Link from "next/link";
 import {
   listProducts,
-  productImageUrl,
 } from "@/modules/products/controller/product.service";
+import { productImageUrl } from "@/modules/products/model/product-public";
 import { formatPriceVND } from "../../../shared/price";
 
 export const revalidate = 60;
