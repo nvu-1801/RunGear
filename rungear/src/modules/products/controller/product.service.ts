@@ -9,39 +9,24 @@ const CAT_SLUGS: Record<Exclude<CatKey, "all">, string> = {
   "quan-ao": "quan-ao",
 };
 
-export async function listProducts({
-  q = "",
-  cat = "all",
-}: { q?: string; cat?: CatKey } = {}) {
+export async function listProducts({ q = "", cat = "all" }: { q?: string; cat?: string }) {
   const sb = await supabaseServer();
 
-  // Nếu cần filter theo category.slug thì dùng INNER JOIN để filter hoạt động.
-  const selectWhenFilter =
-    "id,name,slug,price,description,images,category_id,categories:category_id!inner(slug,name)";
-  const selectDefault =
-    "id,name,slug,price,description,images,category_id,categories:category_id(slug,name)";
+  // Tạo query cơ bản
+  let query = sb.from("products").select("*").order("created_at", { ascending: false });
 
-  const usingFilter = cat && cat !== "all";
-  let query = sb
-    .from("products")
-    .select(usingFilter ? selectWhenFilter : selectDefault)
-    .order("created_at", { ascending: false });
-
-  if (q) query = query.ilike("name", `%${q}%`);
-  if (usingFilter) {
-    const slug = CAT_SLUGS[cat as Exclude<CatKey, "all">];
-    query = query.eq("categories.slug", slug);
-  }
+  if (q) query = query.ilike("name", `%${q}%`); // Lọc theo tên sản phẩm nếu có
+  if (cat !== "all") query = query.eq("category", cat); // Lọc theo category nếu có
 
   const { data, error } = await query;
+
   if (error) {
     console.error("[listProducts]", error);
-    throw new Error(error.message);
+    throw new Error(error.message); // Xử lý lỗi nếu có
   }
-  // data có thể kèm trường nested "categories", nhưng Product không cần – cứ trả về mảng Product tối thiểu
-  return (data ?? []) as Product[];
-}
 
+  return data ?? []; // Trả về danh sách sản phẩm hoặc mảng rỗng nếu không có sản phẩm
+}
 /** Lấy public URL ảnh đầu tiên từ bucket storage "products" */
 export function productImageUrl(p: Product) {
   const path = p.images?.[0];
