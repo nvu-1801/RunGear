@@ -5,6 +5,7 @@ import CartButton from "@/components/cart/CartButton";
 import CartDrawer from "@/components/cart/CartDrawer";
 import { GlobalLoading } from "@/components/common/GlobalLoading";
 import AdminDropdown from "@/components/common/AdminDropdown";
+import Footer from "@/components/common/Footer";
 
 export default async function ProductsGroupLayout({
   children,
@@ -30,65 +31,60 @@ export default async function ProductsGroupLayout({
   return (
     <div className="min-h-dvh flex flex-col bg-white">
       <GlobalLoading />
-      <header className="sticky top-4 z-50 mx-4 md:mx-6 bg-white/80 backdrop-blur border rounded-xl shadow-sm">
+      <header className="sticky top-4 z-50 mx-4 md:mx-6 bg-white/90 backdrop-blur border rounded-2xl shadow-lg transition-all">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="h-20 flex flex-row items-center gap-6">
+          <div className="h-24 flex flex-row items-center gap-8">
             {/* Brand */}
             <Link
               href="/home"
-              className="leading-tight shrink-0 px-2 py-1 rounded-md"
+              className="leading-tight shrink-0 px-3 py-2 rounded-xl hover:bg-gray-100 transition group"
             >
-              <div className="text-3xl font-semibold text-gray-900">
+              <div className="text-4xl font-extrabold text-gray-900 tracking-tight group-hover:text-blue-700 transition">
                 Run Gear
               </div>
-              <div className="text-[11px] text-gray-500">
-                Phong cách & cá tính 
+              <div className="text-xs text-gray-500 group-hover:text-blue-500 transition">
+                Phong cách & cá tính
               </div>
             </Link>
 
             {/* Center nav */}
-            <nav className="hidden md:flex md:flex-row flex-1 justify-center items-center gap-2 text-[14px] text-gray-600">
+            <nav className="hidden md:flex md:flex-row flex-1 justify-center items-center gap-4 text-[15px] text-gray-700 font-medium">
               <Link
                 href="/home"
-                className="px-3 py-2 rounded-md hover:bg-gray-50 hover:text-black font-medium"
+                className="px-4 py-2 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition"
               >
                 Cửa hàng
               </Link>
               <Link
                 href="/about"
-                className="px-3 py-2 rounded-md hover:bg-gray-50 hover:text-black"
+                className="px-4 py-2 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition"
               >
                 Giới thiệu
               </Link>
               <Link
                 href="/faq"
-                className="px-3 py-2 rounded-md hover:bg-gray-50 hover:text-black"
+                className="px-4 py-2 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition"
               >
                 Hỏi đáp
               </Link>
               <Link
                 href="/contact"
-                className="px-3 py-2 rounded-md hover:bg-gray-50 hover:text-black"
+                className="px-4 py-2 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition"
               >
                 Liên hệ
               </Link>
             </nav>
 
             {/* Right */}
-            <div className="flex flex-row items-center gap-2 shrink-0">
-              {/* {isAdmin && (
-                <Link href="/admin" className="btn-vip me-2">
-                  Admin manager
-                </Link>
-              )} */}
+            <div className="flex flex-row items-center gap-3 shrink-0">
               <AdminDropdown isAdmin={isAdmin} />
 
               {/* Search */}
-              <form className="relative hidden sm:block">
-                <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2">
+              {/* <form className="relative hidden sm:block">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    className="w-4 h-4 text-gray-400"
+                    className="w-5 h-5 text-gray-400"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -101,17 +97,17 @@ export default async function ProductsGroupLayout({
                 <input
                   name="q"
                   placeholder="Tìm kiếm..."
-                  className="pl-7 pr-3 py-2 text-sm outline-none border rounded-md focus:ring-1 focus:ring-black/10 text-gray-900"
+                  className="pl-10 pr-4 py-2 text-sm outline-none border border-gray-300 rounded-full focus:ring-2 focus:ring-blue-200 text-gray-900 bg-white transition"
                 />
-              </form>
+              </form> */}
 
-              {/* Auth: nếu có user → Đăng xuất, ngược lại → Đăng nhập */}
+              {/* Auth */}
               {user ? (
                 <SignOutButton />
               ) : (
                 <Link
                   href="/auth/signin"
-                  className="flex items-center gap-2 p-2 rounded-md text-sm text-gray-700 hover:bg-gray-50 hover:text-black"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition shadow"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -124,29 +120,10 @@ export default async function ProductsGroupLayout({
                     <path d="M20 21a8 8 0 0 0-16 0" />
                     <circle cx="12" cy="7" r="4" />
                   </svg>
-                  <span className="hidden sm:inline">Đ.nhập</span>
+                  <span className="hidden sm:inline">Đăng nhập</span>
                 </Link>
               )}
 
-              {/* Cart */}
-              {/* <Link
-                href="//cart"
-                aria-label="Giỏ hàng"
-                className="relative p-2 rounded-md text-orange-500 hover:text-orange-600 hover:bg-orange-50 transition"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <circle cx="9" cy="21" r="1" />
-                  <circle cx="20" cy="21" r="1" />
-                  <path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-                </svg>
-              </Link> */}
               <CartButton />
             </div>
           </div>
@@ -155,9 +132,7 @@ export default async function ProductsGroupLayout({
 
       <main className="flex-1">{children}</main>
       <CartDrawer />
-      <footer className="border-t py-6 text-center text-sm text-gray-500">
-        © {new Date().getFullYear()} Shop
-      </footer>
+      <Footer />
     </div>
   );
 }

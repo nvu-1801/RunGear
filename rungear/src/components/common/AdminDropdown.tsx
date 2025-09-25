@@ -14,10 +14,21 @@ export default function AdminDropdown({ isAdmin }: { isAdmin: boolean }) {
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
     >
-      <button className="btn-vip me-2 flex items-center gap-1" type="button">
+      <button
+        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-400 text-white font-semibold shadow hover:from-blue-700 hover:to-blue-500 transition"
+        type="button"
+      >
+        <svg
+          className="w-5 h-5 text-yellow-300"
+          fill="currentColor"
+          viewBox="0 0 20 20"
+        >
+          <path d="M10 2a2 2 0 0 1 2 2v1h2a2 2 0 0 1 2 2v2h-1a1 1 0 0 0-1 1v2h-2v-2a1 1 0 0 0-1-1h-1V5a2 2 0 0 1 2-2z" />
+          <path d="M2 13a2 2 0 0 1 2-2h2v2a2 2 0 0 0 2 2h2v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2z" />
+        </svg>
         Admin Manager
         <svg
-          className="w-4 h-4"
+          className="w-4 h-4 ml-1"
           fill="none"
           stroke="currentColor"
           strokeWidth="2"
