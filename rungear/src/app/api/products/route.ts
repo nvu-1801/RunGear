@@ -6,8 +6,14 @@ import { listProducts } from "@/modules/products/controller/product.service"; //
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const q = searchParams.get('q') || '';  // Lọc theo tên hoặc slug
-    const cat = searchParams.get('cat') || 'all'; // Lọc theo category, mặc định là "all"
+    const q = searchParams.get("q") || "";
+    const catParam = searchParams.get("cat") || "all";
+
+    // Đảm bảo cat đúng kiểu CatKey
+    const validCats = ["all", "giay", "quan-ao"] as const;
+    const cat = validCats.includes(catParam as any)
+      ? (catParam as (typeof validCats)[number])
+      : "all";
 
     const products = await listProducts({ q, cat });
     return NextResponse.json(products); // Trả về dữ liệu sản phẩm dưới dạng JSON

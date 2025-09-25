@@ -3,7 +3,7 @@ import {
   productImageUrl,
 } from "@/modules/products/controller/product.service";
 import { formatPriceVND } from "@/shared/price";
-import { AddToCart } from "@/modules/products/ui/AddToCart";
+import { AddToCart } from "@/components/common/AddToCart";
 
 export default async function ProductDetail({
   params,
