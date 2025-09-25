@@ -5,6 +5,7 @@ import CartButton from "@/components/cart/CartButton";
 import CartDrawer from "@/components/cart/CartDrawer";
 import { GlobalLoading } from "@/components/common/GlobalLoading";
 import AdminDropdown from "@/components/common/AdminDropdown";
+import Footer from "@/components/common/Footer";
 
 export default async function ProductsGroupLayout({
   children,
@@ -128,25 +129,6 @@ export default async function ProductsGroupLayout({
                 </Link>
               )}
 
-              {/* Cart */}
-              {/* <Link
-                href="//cart"
-                aria-label="Giỏ hàng"
-                className="relative p-2 rounded-md text-orange-500 hover:text-orange-600 hover:bg-orange-50 transition"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <circle cx="9" cy="21" r="1" />
-                  <circle cx="20" cy="21" r="1" />
-                  <path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-                </svg>
-              </Link> */}
               <CartButton />
             </div>
           </div>
@@ -155,9 +137,7 @@ export default async function ProductsGroupLayout({
 
       <main className="flex-1">{children}</main>
       <CartDrawer />
-      <footer className="border-t py-6 text-center text-sm text-gray-500">
-        © {new Date().getFullYear()} Shop
-      </footer>
+      <Footer />
     </div>
   );
 }
