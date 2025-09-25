@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import type { Product } from "../model/product-public";
+import type { Product } from "../../modules/products/model/product-public";
 
 type Line = {
   id: string;
