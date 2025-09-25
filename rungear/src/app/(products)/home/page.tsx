@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { listProducts } from "@/modules/products/controller/product.service";
 import { productImageUrl } from "@/modules/products/model/product-public";
@@ -7,6 +8,43 @@ import BannerSlider from "../../../components/common/BannerSlider";
 export const revalidate = 60;
 
 type CatKey = "all" | "giay" | "quan-ao";
+
+const ICONS: Record<CatKey, ReactNode> = {
+  all: (
+    <svg
+      viewBox="0 0 24 24"
+      className="w-4 h-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" />
+    </svg>
+  ),
+  giay: (
+    <svg
+      viewBox="0 0 24 24"
+      className="w-4 h-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path d="M3 14s2-1 4-1 4 2 7 2 7-1 7-1v2a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-2z" />
+      <path d="M7 13c.5-2 2-5 5-5 2 0 3 1 4 2" />
+    </svg>
+  ),
+  "quan-ao": (
+    <svg
+      viewBox="0 0 24 24"
+      className="w-4 h-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path d="M8 4l4 2 4-2 3 4-3 2v8a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V10L5 8l3-4z" />
+    </svg>
+  ),
+};
 
 export default async function ProductsPage({
   searchParams,
@@ -21,7 +59,11 @@ export default async function ProductsPage({
 
   // ---- Banner: lấy 5 ảnh từ products
   const bannerImages = Array.from(
-    new Set(items.map((p) => productImageUrl(p)).filter((u): u is string => Boolean(u)))
+    new Set(
+      items
+        .map((p) => productImageUrl(p))
+        .filter((u): u is string => Boolean(u))
+    )
   ).slice(0, 5);
 
   // ---- Phân trang: 2 hàng / trang -> chọn 8 items (4 cột x 2 hàng ở lg)
@@ -33,7 +75,9 @@ export default async function ProductsPage({
   const end = Math.min(start + pageSize, total);
   const pageItems = items.slice(start, end);
 
-  const buildQuery = (extra: Record<string, string | number | undefined> = {}) => {
+  const buildQuery = (
+    extra: Record<string, string | number | undefined> = {}
+  ) => {
     const qx: Record<string, string> = {};
     if (q) qx.q = q;
     if (cat && cat !== "all") qx.cat = cat;
@@ -43,16 +87,31 @@ export default async function ProductsPage({
 
   const Tab = (label: string, key: CatKey) => {
     const isActive = cat === key || (!cat && key === "all");
-    const query = buildQuery({ p: 1, ...(key !== "all" ? { cat: key } : {}) });
+    const query: Record<string, string> = {};
+    if (q) query.q = q;
+    if (key !== "all") query.cat = key;
 
     return (
       <Link
         key={key}
         href={{ pathname: "/home", query }}
-        className={`px-3 py-1.5 rounded-full text-sm border transition
-          ${isActive ? "bg-black text-white border-black" : "bg-white text-gray-700 hover:bg-gray-50"}`}
+        aria-current={isActive ? "page" : undefined}
+        className={[
+          "group inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition",
+          "focus:outline-none focus:ring-2 focus:ring-black/10",
+          isActive
+            ? "bg-gray-900 text-white border-gray-900 shadow"
+            : "bg-white text-gray-700 border-transparent hover:border-gray-200 hover:bg-gray-50",
+        ].join(" ")}
       >
-        {label}
+        <span
+          className={
+            isActive ? "opacity-100" : "opacity-70 group-hover:opacity-100"
+          }
+        >
+          {ICONS[key]}
+        </span>
+        <span>{label}</span>
       </Link>
     );
   };
@@ -60,17 +119,21 @@ export default async function ProductsPage({
   return (
     <main className="max-w-6xl mx-auto px-4 py-10">
       {/* Banner */}
-      <BannerSlider images={bannerImages.length ? bannerImages : ["/placeholder.png"]} />
+      <BannerSlider
+        images={bannerImages.length ? bannerImages : ["/placeholder.png"]}
+      />
 
       <div className="flex items-center justify-between gap-4 mb-4">
         <h1 className="text-2xl font-semibold text-gray-900">Cửa hàng</h1>
       </div>
 
       {/* Tabs filter */}
-      <div className="flex items-center gap-2 mb-6">
-        {Tab("Tất cả", "all")}
-        {Tab("Giày", "giay")}
-        {Tab("Trang phục", "quan-ao")}
+      <div className="mb-8">
+        <div className="inline-flex items-center gap-1 rounded-2xl border bg-white/70 backdrop-blur px-1 py-1 shadow-sm">
+          {Tab("Tất cả", "all")}
+          {Tab("Giày", "giay")}
+          {Tab("Trang phục", "quan-ao")}
+        </div>
       </div>
 
       {/* Grid: chỉ hiển thị 2 hàng (8 items) / trang */}
@@ -87,8 +150,12 @@ export default async function ProductsPage({
                 />
               </div>
               <div className="mt-3">
-                <p className="font-medium line-clamp-1 text-gray-900">{p.name}</p>
-                <p className="mt-1 font-semibold text-gray-900">{formatPriceVND(p.price)}</p>
+                <p className="font-medium line-clamp-1 text-gray-900">
+                  {p.name}
+                </p>
+                <p className="mt-1 font-semibold text-gray-900">
+                  {formatPriceVND(p.price)}
+                </p>
               </div>
             </Link>
           </li>
@@ -98,26 +165,45 @@ export default async function ProductsPage({
       {/* Pagination */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-600">
-          Hiển thị <span className="font-medium">{total ? start + 1 : 0}-{end}</span> / {total}
+          Hiển thị{" "}
+          <span className="font-medium">
+            {total ? start + 1 : 0}-{end}
+          </span>{" "}
+          / {total}
         </p>
 
         <div className="flex items-center text-gray-600 gap-2">
           <Link
             aria-disabled={currentPage <= 1}
-            href={{ pathname: "/home", query: buildQuery({ p: Math.max(1, currentPage - 1) }) }}
+            href={{
+              pathname: "/home",
+              query: buildQuery({ p: Math.max(1, currentPage - 1) }),
+            }}
             className={`px-3 py-1.5 rounded-md border text-sm transition
-              ${currentPage <= 1 ? "pointer-events-none opacity-50" : "hover:bg-gray-50"}`}
+              ${
+                currentPage <= 1
+                  ? "pointer-events-none opacity-50"
+                  : "hover:bg-gray-50"
+              }`}
           >
             Prev
           </Link>
           <span className="text-sm text-gray-600">
-            Trang <span className="font-medium">{currentPage}</span> / {totalPages}
+            Trang <span className="font-medium">{currentPage}</span> /{" "}
+            {totalPages}
           </span>
           <Link
             aria-disabled={currentPage >= totalPages}
-            href={{ pathname: "/home", query: buildQuery({ p: Math.min(totalPages, currentPage + 1) }) }}
+            href={{
+              pathname: "/home",
+              query: buildQuery({ p: Math.min(totalPages, currentPage + 1) }),
+            }}
             className={`px-3 py-1.5 rounded-md border text-sm transition
-              ${currentPage >= totalPages ? "pointer-events-none opacity-50" : "hover:bg-gray-50"}`}
+              ${
+                currentPage >= totalPages
+                  ? "pointer-events-none opacity-50"
+                  : "hover:bg-gray-50"
+              }`}
           >
             Next
           </Link>
