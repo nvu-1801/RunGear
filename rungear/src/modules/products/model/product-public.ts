@@ -5,7 +5,7 @@ export type Product = {
   name: string;
   price: number;
   description: string | null;
-  images?: string[] | string | null; // lưu URL tuyệt đối
+  images?: string[] | string | null;
   category_id?: string | null;
 };
 
@@ -29,8 +29,6 @@ export function productImageUrl(p: { images?: string[] | string | null }) {
   return arr[0] ?? null;
 }
 
-// Không còn dùng “imagePathToUrl” để chắp domain nữa.
-// Nếu code cũ còn import, ta cho alias identity:
 export function imagePathToUrl(url: string) {
-  return url; // url đã là https://...
+  return url; 
 }
