@@ -93,6 +93,27 @@ export default function Home() {
             Khám phá sản phẩm
           </a>
         </div>
+
+        {/* Contact Section - Nổi bật */}
+        <div className="mt-16 flex justify-center">
+          <div className="bg-white border-4 border-yellow-400 rounded-2xl shadow-xl p-8 max-w-xl w-full flex flex-col items-center">
+            <div className="flex items-center mb-4">
+              <svg className="w-8 h-8 text-yellow-500 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16 12a4 4 0 01-8 0m8 0a4 4 0 00-8 0m8 0V8a4 4 0 00-8 0v4m8 0v4a4 4 0 01-8 0v-4"></path>
+              </svg>
+              <h3 className="text-2xl font-bold text-yellow-600">Liên hệ với chúng tôi</h3>
+            </div>
+            <p className="text-gray-700 mb-6 text-center">
+              Bạn cần tư vấn hoặc hỗ trợ? Đừng ngần ngại liên hệ với Run Gear!
+            </p>
+            <a
+              href="mailto:contact@rungear.vn"
+              className="inline-block px-6 py-3 bg-yellow-400 text-black font-semibold rounded-lg shadow hover:bg-yellow-500 transition"
+            >
+              Gửi email cho chúng tôi
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   );
