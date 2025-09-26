@@ -38,11 +38,11 @@ export async function listProducts({
   // Truy vấn products
   let qy = sb
     .from("products")
-    .select("id,name,slug,price,description,images,created_at,category_id")
+    .select("id,name,slug,price,description,images,created_at,categories_id")
     .order("created_at", { ascending: false });
 
   if (q) qy = qy.ilike("name", `%${q}%`);
-  if (catId) qy = qy.eq("category_id", catId);
+  if (catId) qy = qy.eq("categories_id", catId);
 
   const { data, error } = await qy;
   if (error) {
@@ -57,7 +57,7 @@ export async function listProducts({
     price: r.price,
     description: r.description,
     images: normalizeImages(r.images),
-    category_id: r.category_id,
+    categories_id: r.categories_id,
   })) as Product[];
 }
 
