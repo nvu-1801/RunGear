@@ -6,7 +6,7 @@ export type Product = {
   price: number;
   description: string | null;
   images?: string[] | string | null;
-  category_id?: string | null;
+  categories_id?: string | null;
 };
 
 const isHttpUrl = (s?: string | null) => !!s && /^https?:\/\//i.test(s!.trim());

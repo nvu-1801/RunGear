@@ -9,7 +9,7 @@ type ProductInput = {
   stock: number;
   imageUrl?: string | null;
   status: "DRAFT" | "ACTIVE" | "HIDDEN";
-  categoryId?: string | null;
+  categories_idId?: string | null;
 };
 
 type Product = ProductInput & { id: string };
@@ -29,7 +29,7 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
     stock: 0,
     imageUrl: "",
     status: "DRAFT",
-    categoryId: null,
+    categories_idId: null,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +70,12 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
           <h2 className="text-lg font-semibold">
             {isEdit ? "Edit Product" : "New Product"}
           </h2>
-          <button onClick={onClose} className="px-2 py-1 rounded-lg hover:bg-gray-100">✕</button>
+          <button
+            onClick={onClose}
+            className="px-2 py-1 rounded-lg hover:bg-gray-100"
+          >
+            ✕
+          </button>
         </div>
 
         <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -96,7 +101,9 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
             <input
               type="number"
               value={form.price}
-              onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
+              onChange={(e) =>
+                setForm({ ...form, price: Number(e.target.value) })
+              }
               className="border px-3 py-2 rounded-md w-full"
             />
           </div>
@@ -105,7 +112,9 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
             <input
               type="number"
               value={form.stock}
-              onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })}
+              onChange={(e) =>
+                setForm({ ...form, stock: Number(e.target.value) })
+              }
               className="border px-3 py-2 rounded-md w-full"
             />
           </div>
@@ -124,7 +133,9 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
             <label className="text-sm text-gray-600">Status</label>
             <select
               value={form.status}
-              onChange={(e) => setForm({ ...form, status: e.target.value as any })}
+              onChange={(e) =>
+                setForm({ ...form, status: e.target.value as any })
+              }
               className="border px-3 py-2 rounded-md w-full"
             >
               <option value="DRAFT">DRAFT</option>
@@ -134,12 +145,16 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
           </div>
 
           <div className="space-y-1 md:col-span-2">
-            <label className="text-sm text-gray-600">Category ID (optional)</label>
+            <label className="text-sm text-gray-600">
+              categories_id ID (optional)
+            </label>
             <input
-              value={form.categoryId ?? ""}
-              onChange={(e) => setForm({ ...form, categoryId: e.target.value || null })}
+              value={form.categories_idId ?? ""}
+              onChange={(e) =>
+                setForm({ ...form, categories_idId: e.target.value || null })
+              }
               className="border px-3 py-2 rounded-md w-full"
-              placeholder="uuid của Category"
+              placeholder="uuid của categories_id"
             />
           </div>
         </div>
@@ -147,7 +162,9 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
         {error && <div className="px-4 pb-2 text-red-600 text-sm">{error}</div>}
 
         <div className="p-4 border-t flex items-center justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg border">Cancel</button>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg border">
+            Cancel
+          </button>
           <button
             onClick={submit}
             disabled={saving}

@@ -4,6 +4,7 @@ import { listProducts } from "@/modules/products/controller/product.service";
 import { productImageUrl } from "@/modules/products/model/product-public";
 import { formatPriceVND } from "../../../shared/price";
 import BannerSlider from "../../../components/common/BannerSlider";
+import { supabaseServer } from "@/libs/db/supabase/supabase-server";
 
 export const revalidate = 60;
 
@@ -89,11 +90,41 @@ export default async function ProductsPage({
   const end = Math.min(start + pageSize, total);
   const pageItems = items.slice(start, end);
 
-  // Đếm số lượng từng loại cho badge tab
+  // ---- thay cho catCounts cũ ----
+  const sb = await supabaseServer();
+
+  // lấy id 2 slug một lần
+  const { data: catRows } = await sb
+    .from("categories")
+    .select("id, slug")
+    .in("slug", ["giay", "quan-ao"]);
+
+  const idGiay = catRows?.find((c) => c.slug === "giay")?.id ?? null;
+  const idQuanAo = catRows?.find((c) => c.slug === "quan-ao")?.id ?? null;
+
+  // base query đếm
+  const createBaseCountQuery = () => {
+    let builder = sb
+      .from("products")
+      .select("id", { count: "exact", head: true });
+    if (q) builder = builder.ilike("name", `%${q}%`);
+    return builder;
+  };
+
+  const [{ count: allCnt }, giayRes, qaRes] = await Promise.all([
+    createBaseCountQuery(),
+    idGiay
+      ? createBaseCountQuery().eq("categories_id", idGiay)
+      : Promise.resolve({ count: 0 }),
+    idQuanAo
+      ? createBaseCountQuery().eq("categories_id", idQuanAo)
+      : Promise.resolve({ count: 0 }),
+  ]);
+
   const catCounts: Record<CatKey, number> = {
-    all: (await listProducts({ q })).length,
-    giay: (await listProducts({ q, cat: "giay" })).length,
-    "quan-ao": (await listProducts({ q, cat: "quan-ao" })).length,
+    all: allCnt ?? 0,
+    giay: giayRes?.count ?? 0,
+    "quan-ao": qaRes?.count ?? 0,
   };
 
   // Build query helper
@@ -158,52 +189,82 @@ export default async function ProductsPage({
       />
 
       {/* Search & filter */}
-      <form className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
+      <form method="get" className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6" aria-label="Tìm kiếm và lọc">
         <h1 className="text-2xl font-bold text-gray-900">Cửa hàng</h1>
-        <div className="flex flex-wrap gap-2 w-full md:w-auto">
+
+        <div className="flex flex-wrap gap-2 w-full md:w-auto items-center">
           <div className="relative w-full md:w-72">
             <input
               name="q"
               defaultValue={q}
               placeholder="Tìm kiếm sản phẩm..."
               className="w-full rounded-full border border-gray-300 px-4 py-2.5 pl-10 text-gray-800 bg-white shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
+              aria-label="Tìm kiếm sản phẩm"
             />
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                viewBox="0 0 24 24"
-              >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <circle cx="11" cy="11" r="8" />
                 <path d="M21 21l-4.3-4.3" />
               </svg>
             </span>
           </div>
-          {/* Lọc theo giá */}
-          <input
-            type="number"
-            name="min"
-            min={0}
-            placeholder="Giá từ"
-            defaultValue={min}
-            className="w-24 rounded-full border border-gray-300 px-3 py-2 text-gray-800 bg-white shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
-          />
-          <input
-            type="number"
-            name="max"
-            min={0}
-            placeholder="Đến"
-            defaultValue={max}
-            className="w-24 rounded-full border border-gray-300 px-3 py-2 text-gray-800 bg-white shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
-          />
-          <button
-            type="submit"
-            className="rounded-full bg-blue-700 text-white px-5 py-2 font-semibold shadow hover:bg-blue-800 transition"
-          >
-            Lọc
-          </button>
+
+          {/* giữ cat để không mất tab khi submit */}
+          <input type="hidden" name="cat" value={cat} />
+
+          {/* Lọc theo giá - dùng select preset để tránh phải nhập bằng bàn phím */}
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <label className="sr-only" htmlFor="min">Giá từ</label>
+              <select
+                id="min"
+                name="min"
+                defaultValue={min || ""}
+                className="w-32 rounded-full border border-gray-300 px-3 py-2 text-gray-800 bg-white shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
+                aria-label="Giá từ"
+              >
+                <option value="">Giá từ</option>
+                <option value="0">0 ₫</option>
+                <option value="100000">100.000 ₫</option>
+                <option value="200000">200.000 ₫</option>
+                <option value="500000">500.000 ₫</option>
+                <option value="1000000">1.000.000 ₫</option>
+              </select>
+            </div>
+
+            <div className="relative">
+              <label className="sr-only" htmlFor="max">Đến</label>
+              <select
+                id="max"
+                name="max"
+                defaultValue={max || ""}
+                className="w-32 rounded-full border border-gray-300 px-3 py-2 text-gray-800 bg-white shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
+                aria-label="Đến giá"
+              >
+                <option value="">Đến</option>
+                <option value="200000">200.000 ₫</option>
+                <option value="500000">500.000 ₫</option>
+                <option value="1000000">1.000.000 ₫</option>
+                <option value="3000000">3.000.000 ₫</option>
+                <option value="10000000">10.000.000 ₫</option>
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              className="rounded-full bg-blue-700 text-white px-5 py-2 font-semibold shadow hover:bg-blue-800 transition"
+            >
+              Lọc
+            </button>
+
+            <a
+              href={`/home${q ? `?q=${encodeURIComponent(q)}` : ""}${cat && cat !== "all" ? `${q ? "&" : "?"}cat=${encodeURIComponent(cat)}` : ""}`}
+              className="ml-2 text-sm text-gray-600 hover:text-blue-700 transition"
+              aria-label="Xoá lọc giá"
+            >
+              Xoá
+            </a>
+          </div>
         </div>
       </form>
 

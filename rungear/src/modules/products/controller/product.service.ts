@@ -9,12 +9,9 @@ export async function listProducts({
   cat = "all",
 }: { q?: string; cat?: CatKey } = {}) {
   const sb = await supabaseServer();
+  const catSafe: CatKey = cat === "giay" || cat === "quan-ao" ? cat : "all";
 
-  // đảm bảo cat hợp lệ
-  const catSafe: CatKey =
-    cat === "giay" || cat === "quan-ao" || cat === "all" ? cat : "all";
-
-  // Nếu có cat (không phải "all") -> lấy id theo slug (không throw khi 0 dòng)
+  // lấy id category theo slug khi cần
   let catId: string | null = null;
   if (catSafe !== "all") {
     const { data: c, error: e1 } = await sb
@@ -23,19 +20,11 @@ export async function listProducts({
       .eq("slug", catSafe)
       .maybeSingle();
 
-    // Nếu có lỗi thực (không phải 'không có dòng'), ném ra để bắt đúng bug (ví dụ RLS)
-    if (e1 && e1.code !== "PGRST116") {
-      // gợi ý: log thêm để debug
-      console.error("[listProducts] categories query error", e1);
-      throw e1;
-    }
-
-    // Không tìm thấy slug -> không có sản phẩm nào thuộc cat này
-    if (!c?.id) return [];
+    if (e1 && e1.code !== "PGRST116") throw e1;
+    if (!c?.id) return []; // slug không tồn tại
     catId = c.id;
   }
 
-  // Truy vấn products
   let qy = sb
     .from("products")
     .select("id,name,slug,price,description,images,created_at,categories_id")
@@ -45,10 +34,7 @@ export async function listProducts({
   if (catId) qy = qy.eq("categories_id", catId);
 
   const { data, error } = await qy;
-  if (error) {
-    console.error("[listProducts] products query error", error);
-    throw error;
-  }
+  if (error) throw error;
 
   return (data ?? []).map((r: any) => ({
     id: r.id,
@@ -60,6 +46,7 @@ export async function listProducts({
     categories_id: r.categories_id,
   })) as Product[];
 }
+
 
 export async function getProductBySlug(slug: string) {
   const sb = await supabaseServer();
