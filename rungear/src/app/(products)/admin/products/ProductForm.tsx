@@ -8,7 +8,7 @@ type ProductInput = {
   price: number;
   stock: number;
   imageUrl?: string | null;
-  status: "DRAFT" | "ACTIVE" | "HIDDEN";
+  status: "draft" | "active" | "hidden" | "published";
   categoryId?: string | null;
 };
 
@@ -28,7 +28,7 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
     price: 0,
     stock: 0,
     imageUrl: "",
-    status: "DRAFT",
+    status: "published",
     categoryId: null,
   });
   const [saving, setSaving] = useState(false);
@@ -45,14 +45,14 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
     setSaving(true);
     setError(null);
     const endpoint = isEdit
-      ? `/api/admin/products/${(initial as Product).id}`
-      : "/api/admin/products";
+      ? `/api/products/${(initial as Product).id}`
+      : "/api/products";
     const method = isEdit ? "PUT" : "POST";
     const r = await fetch(endpoint, {
       method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
-    });
+    });``
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
       setError(j?.message || "Save failed");
@@ -127,9 +127,10 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
               onChange={(e) => setForm({ ...form, status: e.target.value as any })}
               className="border px-3 py-2 rounded-md w-full"
             >
-              <option value="DRAFT">DRAFT</option>
-              <option value="ACTIVE">ACTIVE</option>
-              <option value="HIDDEN">HIDDEN</option>
+              <option value="DRAFT">draft</option>
+              <option value="ACTIVE">active</option>
+              <option value="HIDDEN">hidden</option>
+              <option value="PUBLISHED">published</option>
             </select>
           </div>
 

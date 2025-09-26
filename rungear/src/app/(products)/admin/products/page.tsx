@@ -12,7 +12,7 @@ type Product = {
   price: number;
   stock: number;
   imageUrl?: string | null;
-  status: "DRAFT" | "ACTIVE" | "HIDDEN";
+  status: "draft" | "active" | "hidden" | "published";
   category?: Category | null;
 };
 
