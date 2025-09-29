@@ -48,16 +48,21 @@ export async function listProducts({
 }
 
 
-export async function getProductBySlug(slug: string) {
+export async function getProductById(id: string) {
   const sb = await supabaseServer();
   const { data, error } = await sb
     .from("products")
     .select("*, product_images(url, position)")
-    .eq("slug", slug)
+    .eq("id", id)            // <-- lấy theo ID
     .single();
-  if (error) throw error;
 
-  const fromCol = normalizeImages(data.images); // products.images có thể là text hoặc text[]
+  // Map 404 -> "NOT_FOUND" để page.tsx xử lý
+  if (error) {
+    if (error.code === "PGRST116") throw new Error("NOT_FOUND");
+    throw error;
+  }
+
+  const fromCol = normalizeImages(data.images);
   const fromChild = (data.product_images ?? [])
     .sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0))
     .map((x: any) => x.url)

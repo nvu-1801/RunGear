@@ -299,7 +299,7 @@ export default async function ProductsPage({
       <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-7 mb-8">
         {pageItems.map((p) => (
           <li key={p.id} className="group relative">
-            <Link href={`/home/${p.slug}`} className="block h-full">
+            <Link href={`/home/${p.id}`} className="block h-full">
               <div className="aspect-square overflow-hidden rounded-2xl border bg-white shadow-md group-hover:shadow-2xl transition-all duration-200">
                 <img
                   src={productImageUrl(p) ?? "/placeholder.png"}
