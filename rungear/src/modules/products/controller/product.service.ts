@@ -2,14 +2,17 @@ import "server-only";
 import { supabaseServer } from "@/libs/db/supabase/supabase-server";
 import { normalizeImages, type Product } from "../model/product-public";
 
-type CatKey = "all" | "giay" | "quan-ao";
+type CatKey = "all" | "ao" | "quan" | "giay";
 
 export async function listProducts({
   q = "",
   cat = "all",
 }: { q?: string; cat?: CatKey } = {}) {
   const sb = await supabaseServer();
-  const catSafe: CatKey = cat === "giay" || cat === "quan-ao" ? cat : "all";
+
+  // chỉ nhận 1 trong 4 key; sai -> "all"
+  const validCats: CatKey[] = ["all", "ao", "quan", "giay"];
+  const catSafe: CatKey = validCats.includes(cat) ? cat : "all";
 
   // lấy id category theo slug khi cần
   let catId: string | null = null;
@@ -17,11 +20,11 @@ export async function listProducts({
     const { data: c, error: e1 } = await sb
       .from("categories")
       .select("id")
-      .eq("slug", catSafe)
+      .eq("slug", catSafe)         // slug: "ao" | "quan" | "giay"
       .maybeSingle();
 
     if (e1 && e1.code !== "PGRST116") throw e1;
-    if (!c?.id) return []; // slug không tồn tại
+    if (!c?.id) return [];         // slug không tồn tại
     catId = c.id;
   }
 

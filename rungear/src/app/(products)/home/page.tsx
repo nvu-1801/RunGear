@@ -8,7 +8,7 @@ import { supabaseServer } from "@/libs/db/supabase/supabase-server";
 
 export const revalidate = 60;
 
-type CatKey = "all" | "giay" | "quan-ao";
+type CatKey = "all" | "ao" | "quan" | "giay";
 
 const ICONS: Record<CatKey, ReactNode> = {
   all: (
@@ -34,7 +34,7 @@ const ICONS: Record<CatKey, ReactNode> = {
       <path d="M7 13c.5-2 2-5 5-5 2 0 3 1 4 2" />
     </svg>
   ),
-  "quan-ao": (
+  ao: (
     <svg
       viewBox="0 0 24 24"
       className="w-4 h-4"
@@ -43,6 +43,17 @@ const ICONS: Record<CatKey, ReactNode> = {
       strokeWidth="2"
     >
       <path d="M8 4l4 2 4-2 3 4-3 2v8a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V10L5 8l3-4z" />
+    </svg>
+  ),
+  quan: (
+    <svg
+      viewBox="0 0 24 24"
+      className="w-4 h-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path d="M7 3h10l-2 18H9L7 3zM9 9h6" />
     </svg>
   ),
 };
@@ -93,16 +104,17 @@ export default async function ProductsPage({
   // ---- thay cho catCounts cũ ----
   const sb = await supabaseServer();
 
-  // lấy id 2 slug một lần
+  // Lấy 3 slug một lần
   const { data: catRows } = await sb
     .from("categories")
     .select("id, slug")
-    .in("slug", ["giay", "quan-ao"]);
+    .in("slug", ["ao", "quan", "giay"]);
 
+  const idAo = catRows?.find((c) => c.slug === "ao")?.id ?? null;
+  const idQuan = catRows?.find((c) => c.slug === "quan")?.id ?? null;
   const idGiay = catRows?.find((c) => c.slug === "giay")?.id ?? null;
-  const idQuanAo = catRows?.find((c) => c.slug === "quan-ao")?.id ?? null;
 
-  // base query đếm
+  // base query đếm (kèm filter q nếu có)
   const createBaseCountQuery = () => {
     let builder = sb
       .from("products")
@@ -111,20 +123,24 @@ export default async function ProductsPage({
     return builder;
   };
 
-  const [{ count: allCnt }, giayRes, qaRes] = await Promise.all([
+  const [{ count: allCnt }, aoRes, quanRes, giayRes] = await Promise.all([
     createBaseCountQuery(),
+    idAo
+      ? createBaseCountQuery().eq("categories_id", idAo)
+      : Promise.resolve({ count: 0 }),
+    idQuan
+      ? createBaseCountQuery().eq("categories_id", idQuan)
+      : Promise.resolve({ count: 0 }),
     idGiay
       ? createBaseCountQuery().eq("categories_id", idGiay)
-      : Promise.resolve({ count: 0 }),
-    idQuanAo
-      ? createBaseCountQuery().eq("categories_id", idQuanAo)
       : Promise.resolve({ count: 0 }),
   ]);
 
   const catCounts: Record<CatKey, number> = {
     all: allCnt ?? 0,
+    ao: aoRes?.count ?? 0,
+    quan: quanRes?.count ?? 0,
     giay: giayRes?.count ?? 0,
-    "quan-ao": qaRes?.count ?? 0,
   };
 
   // Build query helper
@@ -290,8 +306,9 @@ export default async function ProductsPage({
       <div className="mb-8">
         <div className="inline-flex items-center gap-2 rounded-full border bg-white/80 backdrop-blur px-2 py-2 shadow-sm">
           {Tab("Tất cả", "all")}
+          {Tab("Áo", "ao")}
+          {Tab("Quần", "quan")}
           {Tab("Giày", "giay")}
-          {Tab("Trang phục", "quan-ao")}
         </div>
       </div>
 
