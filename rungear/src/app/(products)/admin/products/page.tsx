@@ -8,11 +8,11 @@ type categories_id = { id: string; name: string; slug: string };
 type Product = {
   id: string;
   name: string;
-  slug: string;
+  slug: "quần" | "áo" | "giày";
   price: number;
   stock: number;
   imageUrl?: string | null;
-  status: "DRAFT" | "ACTIVE" | "HIDDEN";
+  status: "draft" | "active" | "hidden";
   categories_id?: categories_id | null;
 };
 
@@ -30,11 +30,11 @@ export default function ProductManager({
     {
       id: string;
       name: string;
-      slug: string;
+      slug: "quần" | "áo" | "giày";
       price: number;
       stock: number;
       imageUrl?: string | null;
-      status: "DRAFT" | "ACTIVE" | "HIDDEN";
+      status: "draft" | "active" | "hidden";
       categories_id?: categories_id | null;
     }[]
   >;

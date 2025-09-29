@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 
 type ProductInput = {
   name: string;
-  slug: string;
+  slug: "quần" | "áo" | "giày";
   price: number;
   stock: number;
   imageUrl?: string | null;
-  status: "DRAFT" | "ACTIVE" | "HIDDEN";
+  status: "draft" | "active" | "hidden";
   categories_idId?: string | null;
 };
 
@@ -24,11 +24,11 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
   const isEdit = !!initial;
   const [form, setForm] = useState<ProductInput>({
     name: "",
-    slug: "",
+    slug: "áo",
     price: 0,
     stock: 0,
     imageUrl: "",
-    status: "DRAFT",
+    status: "active",
     categories_idId: null,
   });
   const [saving, setSaving] = useState(false);
@@ -45,8 +45,8 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
     setSaving(true);
     setError(null);
     const endpoint = isEdit
-      ? `/api/admin/products/${(initial as Product).id}`
-      : "/api/admin/products";
+      ? `/api/products/${(initial as Product).id}`
+      : "/api/products";
     const method = isEdit ? "PUT" : "POST";
     const r = await fetch(endpoint, {
       method,
@@ -89,11 +89,15 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
           </div>
           <div className="space-y-1">
             <label className="text-sm text-gray-600">Slug</label>
-            <input
+            <select
               value={form.slug}
-              onChange={(e) => setForm({ ...form, slug: e.target.value })}
+              onChange={(e) => setForm({ ...form, slug: e.target.value as ProductInput["slug"] })}
               className="border px-3 py-2 rounded-md w-full"
-            />
+            >
+              <option value="quần">quần</option>
+              <option value="áo">áo</option>
+              <option value="giày">giày</option>
+            </select>
           </div>
 
           <div className="space-y-1">
@@ -138,9 +142,9 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
               }
               className="border px-3 py-2 rounded-md w-full"
             >
-              <option value="DRAFT">DRAFT</option>
-              <option value="ACTIVE">ACTIVE</option>
-              <option value="HIDDEN">HIDDEN</option>
+              <option value="DRAFT">draft</option>
+              <option value="ACTIVE">active</option>
+              <option value="HIDDEN">hidden</option>
             </select>
           </div>
 
