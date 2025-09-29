@@ -4,66 +4,16 @@ import { listProducts } from "@/modules/products/controller/product.service";
 import { productImageUrl } from "@/modules/products/model/product-public";
 import { formatPriceVND } from "../../../shared/price";
 import BannerSlider from "../../../components/common/BannerSlider";
-import { supabaseServer } from "@/libs/db/supabase/supabase-server";
+import CategoryTabs, { type CatKey } from "@/components/catalog/CategoryTabs";
 
 export const revalidate = 60;
-
-type CatKey = "all" | "ao" | "quan" | "giay";
-
-const ICONS: Record<CatKey, ReactNode> = {
-  all: (
-    <svg
-      viewBox="0 0 24 24"
-      className="w-4 h-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" />
-    </svg>
-  ),
-  giay: (
-    <svg
-      viewBox="0 0 24 24"
-      className="w-4 h-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <path d="M3 14s2-1 4-1 4 2 7 2 7-1 7-1v2a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-2z" />
-      <path d="M7 13c.5-2 2-5 5-5 2 0 3 1 4 2" />
-    </svg>
-  ),
-  ao: (
-    <svg
-      viewBox="0 0 24 24"
-      className="w-4 h-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <path d="M8 4l4 2 4-2 3 4-3 2v8a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V10L5 8l3-4z" />
-    </svg>
-  ),
-  quan: (
-    <svg
-      viewBox="0 0 24 24"
-      className="w-4 h-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <path d="M7 3h10l-2 18H9L7 3zM9 9h6" />
-    </svg>
-  ),
-};
 
 export default async function ProductsPage({
   searchParams,
 }: {
   searchParams: Promise<{
     q?: string;
-    cat?: CatKey;
+    cat?: CatKey; // dùng type từ CategoryTabs
     p?: string;
     min?: string;
     max?: string;
@@ -76,6 +26,7 @@ export default async function ProductsPage({
     min = "",
     max = "",
   } = await searchParams;
+
   const page = Math.max(1, Number(p) || 1);
 
   // Lọc sản phẩm theo giá nếu có min/max
@@ -101,48 +52,6 @@ export default async function ProductsPage({
   const end = Math.min(start + pageSize, total);
   const pageItems = items.slice(start, end);
 
-  // ---- thay cho catCounts cũ ----
-  const sb = await supabaseServer();
-
-  // Lấy 3 slug một lần
-  const { data: catRows } = await sb
-    .from("categories")
-    .select("id, slug")
-    .in("slug", ["ao", "quan", "giay"]);
-
-  const idAo = catRows?.find((c) => c.slug === "ao")?.id ?? null;
-  const idQuan = catRows?.find((c) => c.slug === "quan")?.id ?? null;
-  const idGiay = catRows?.find((c) => c.slug === "giay")?.id ?? null;
-
-  // base query đếm (kèm filter q nếu có)
-  const createBaseCountQuery = () => {
-    let builder = sb
-      .from("products")
-      .select("id", { count: "exact", head: true });
-    if (q) builder = builder.ilike("name", `%${q}%`);
-    return builder;
-  };
-
-  const [{ count: allCnt }, aoRes, quanRes, giayRes] = await Promise.all([
-    createBaseCountQuery(),
-    idAo
-      ? createBaseCountQuery().eq("categories_id", idAo)
-      : Promise.resolve({ count: 0 }),
-    idQuan
-      ? createBaseCountQuery().eq("categories_id", idQuan)
-      : Promise.resolve({ count: 0 }),
-    idGiay
-      ? createBaseCountQuery().eq("categories_id", idGiay)
-      : Promise.resolve({ count: 0 }),
-  ]);
-
-  const catCounts: Record<CatKey, number> = {
-    all: allCnt ?? 0,
-    ao: aoRes?.count ?? 0,
-    quan: quanRes?.count ?? 0,
-    giay: giayRes?.count ?? 0,
-  };
-
   // Build query helper
   const buildQuery = (
     extra: Record<string, string | number | undefined> = {}
@@ -154,47 +63,6 @@ export default async function ProductsPage({
     if (max) qx.max = max;
     if (extra.p) qx.p = String(extra.p);
     return qx;
-  };
-
-  // Tab component với badge số lượng
-  const Tab = (label: string, key: CatKey) => {
-    const isActive = cat === key || (!cat && key === "all");
-    const query: Record<string, string> = {};
-    if (q) query.q = q;
-    if (min) query.min = min;
-    if (max) query.max = max;
-    if (key !== "all") query.cat = key;
-
-    return (
-      <Link
-        key={key}
-        href={{ pathname: "/home", query }}
-        aria-current={isActive ? "page" : undefined}
-        className={[
-          "group inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition",
-          "focus:outline-none focus:ring-2 focus:ring-blue-200",
-          isActive
-            ? "bg-blue-700 text-white border-blue-700 shadow"
-            : "bg-white text-gray-700 border-gray-200 hover:bg-blue-50 hover:text-blue-700",
-        ].join(" ")}
-      >
-        <span
-          className={
-            isActive ? "opacity-100" : "opacity-70 group-hover:opacity-100"
-          }
-        >
-          {ICONS[key]}
-        </span>
-        <span>{label}</span>
-        <span
-          className={`ml-2 px-2 py-0.5 rounded-full text-xs font-bold ${
-            isActive ? "bg-white text-blue-700" : "bg-blue-100 text-blue-700"
-          }`}
-        >
-          {catCounts[key]}
-        </span>
-      </Link>
-    );
   };
 
   return (
@@ -238,12 +106,10 @@ export default async function ProductsPage({
           {/* giữ cat để không mất tab khi submit */}
           <input type="hidden" name="cat" value={cat} />
 
-          {/* Lọc theo giá - dùng select preset để tránh phải nhập bằng bàn phím */}
+          {/* Lọc theo giá */}
           <div className="flex items-center gap-2">
             <div className="relative">
-              <label className="sr-only" htmlFor="min">
-                Giá từ
-              </label>
+              <label className="sr-only" htmlFor="min">Giá từ</label>
               <select
                 id="min"
                 name="min"
@@ -261,9 +127,7 @@ export default async function ProductsPage({
             </div>
 
             <div className="relative">
-              <label className="sr-only" htmlFor="max">
-                Đến
-              </label>
+              <label className="sr-only" htmlFor="max">Đến</label>
               <select
                 id="max"
                 name="max"
@@ -302,14 +166,9 @@ export default async function ProductsPage({
         </div>
       </form>
 
-      {/* Tabs filter */}
+      {/* Tabs filter (đã tách thành component) */}
       <div className="mb-8">
-        <div className="inline-flex items-center gap-2 rounded-full border bg-white/80 backdrop-blur px-2 py-2 shadow-sm">
-          {Tab("Tất cả", "all")}
-          {Tab("Áo", "ao")}
-          {Tab("Quần", "quan")}
-          {Tab("Giày", "giay")}
-        </div>
+        <CategoryTabs active={cat} q={q} min={min} max={max} pathname="/home" />
       </div>
 
       {/* Grid: chỉ hiển thị 2 hàng (8 items) / trang */}
@@ -324,17 +183,6 @@ export default async function ProductsPage({
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                   loading="lazy"
                 />
-                {/* Badge mới hoặc sale */}
-                {/* {p.isNew && (
-                  <span className="absolute top-3 left-3 bg-emerald-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow">
-                    Mới
-                  </span>
-                )}
-                {p.isSale && (
-                  <span className="absolute top-3 right-3 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow">
-                    Sale
-                  </span>
-                )} */}
               </div>
               <div className="mt-3 px-1">
                 <p className="font-semibold text-base text-gray-900 line-clamp-1 group-hover:text-blue-700 transition">
