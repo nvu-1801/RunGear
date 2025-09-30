@@ -2,8 +2,8 @@ import Link from "next/link";
 import { supabaseServer } from "@/libs/db/supabase/supabase-server";
 import SignOutButton from "@/components/auth/SignOutButton";
 import CartButton from "@/components/cart/CartButton";
-import CartDrawer from "@/components/cart/CartDrawer";
-import { GlobalLoading } from "@/components/common/GlobalLoading";
+// import CartDrawer from "@/components/cart/CartDrawer";
+// import { GlobalLoading } from "@/components/common/GlobalLoading";
 import AdminDropdown from "@/components/common/AdminDropdown";
 import Footer from "@/components/common/Footer";
 
@@ -30,7 +30,7 @@ export default async function ProductsGroupLayout({
 
   return (
     <div className="min-h-dvh flex flex-col bg-white">
-      <GlobalLoading />
+      {/* <GlobalLoading /> */}
       <header className="sticky top-4 z-50 mx-4 md:mx-6 bg-white/90 backdrop-blur border rounded-2xl shadow-lg transition-all">
         <div className="max-w-7xl mx-auto px-4">
           <div className="h-24 flex flex-row items-center gap-8">
@@ -110,7 +110,7 @@ export default async function ProductsGroupLayout({
       </header>
 
       <main className="flex-1">{children}</main>
-      <CartDrawer />
+      {/* <CartDrawer /> */}
       <Footer />
     </div>
   );

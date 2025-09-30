@@ -85,7 +85,7 @@ export default function CartDrawer() {
                   <div className="inline-flex items-center border rounded-full bg-white shadow-sm">
                     <button
                       className="px-2 py-1 rounded-l-full hover:bg-blue-50 text-blue-600 text-lg transition"
-                      onClick={() => updateQty(it.id, -1)}
+                      onClick={() => updateQty(it.id, -1, it.variant ?? null)}
                     >
                       −
                     </button>
@@ -94,7 +94,7 @@ export default function CartDrawer() {
                     </div>
                     <button
                       className="px-2 py-1 rounded-r-full hover:bg-blue-50 text-blue-600 text-lg transition"
-                      onClick={() => updateQty(it.id, +1)}
+                      onClick={() => updateQty(it.id, +1, it.variant ?? null)}
                     >
                       +
                     </button>
@@ -105,7 +105,7 @@ export default function CartDrawer() {
                 </div>
               </div>
               <button
-                onClick={() => remove(it.id)}
+                onClick={() => remove(it.id, it.variant ?? null)}
                 className="p-1.5 rounded-full text-gray-400 hover:text-red-600 hover:bg-red-50 transition"
                 title="Xoá sản phẩm"
               >

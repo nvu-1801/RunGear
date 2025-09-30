@@ -1,3 +1,4 @@
+import Link from "next/link";
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-white to-blue-50">
@@ -86,12 +87,12 @@ export default function Home() {
             Mỗi bước chạy, mỗi buổi tập đều mang lại năng lượng tích cực và giúp
             bạn trở nên tốt hơn mỗi ngày.
           </p>
-          <a
+          <link
             href="/home"
             className="inline-block px-10 py-3 bg-black text-white font-semibold rounded-xl shadow-lg hover:bg-gray-800 transition text-lg"
           >
             Khám phá sản phẩm
-          </a>
+          </link>
         </div>
 
         {/* Contact Section - Nổi bật */}
@@ -106,12 +107,12 @@ export default function Home() {
             <p className="text-gray-700 mb-6 text-center">
               Bạn cần tư vấn hoặc hỗ trợ? Đừng ngần ngại liên hệ với Run Gear!
             </p>
-            <a
+            <link
               href="mailto:contact@rungear.vn"
               className="inline-block px-6 py-3 bg-yellow-400 text-black font-semibold rounded-lg shadow hover:bg-yellow-500 transition"
             >
               Gửi email cho chúng tôi
-            </a>
+            </link>
           </div>
         </div>
       </div>
