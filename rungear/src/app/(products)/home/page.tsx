@@ -294,52 +294,85 @@ export default async function ProductsPage({
       <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 md:gap-7 mb-10">
         {pageItems.map((p) => {
           const { rating, reviews } = getRatingFor(p.id);
+          const href = `/home/${p.id}`;
           return (
-            <li key={p.id} className="group relative">
-              <Link href={`/home/${p.id}`} className="block h-full">
-                <div className="aspect-square overflow-hidden rounded-2xl border bg-white shadow-md transition-all duration-200 group-hover:shadow-2xl">
+            <li key={p.id}>
+              <article
+                className="group relative overflow-hidden rounded-2xl border border-slate-200/70 bg-white
+                     shadow-sm transition hover:shadow-md hover:-translate-y-0.5
+                     focus-within:ring-2 focus-within:ring-blue-200/70"
+              >
+                {/* Ảnh + khung viền dịu */}
+                <div className="relative aspect-square bg-gradient-to-br from-slate-50 to-white">
                   <img
                     src={productImageUrl(p) ?? "/placeholder.png"}
                     alt={p.name}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                     loading="lazy"
                   />
-                  <Link href={`/home/${p.id}`} className="block h-full">
-                    {/* Khung ảnh phải có relative để overlay bám theo */}
-                    <div className="relative aspect-square overflow-hidden rounded-2xl border bg-white shadow-md transition-all duration-200 group-hover:shadow-2xl">
-                      <img
-                        src={productImageUrl(p) ?? "/placeholder.png"}
-                        alt={p.name}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                        loading="lazy"
-                      />
-                    </div>
-
-                    {/* phần tên + giá phía dưới… */}
-                  </Link>
+                  {/* viền trong mảnh + đổi màu khi hover */}
+                  <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-slate-200/70 group-hover:ring-blue-200/80" />
+                  {/* Link phủ ảnh */}
+                  <Link
+                    href={href}
+                    prefetch={false}
+                    aria-label={`Xem ${p.name}`}
+                    className="absolute inset-0"
+                  />
                 </div>
 
-                <div className="mt-3 px-1">
-                  <p className="font-semibold text-base text-gray-900 line-clamp-1 group-hover:text-blue-700 transition">
+                {/* Nội dung */}
+                <div className="p-3">
+                  <Link
+                    href={href}
+                    prefetch={false}
+                    className="block font-semibold text-[15px] text-slate-900 tracking-tight
+                         line-clamp-1 transition group-hover:text-blue-700"
+                    title={p.name}
+                  >
                     {p.name}
-                  </p>
-                  {/* Rating + reviews */}
-                  <div className="mt-1 flex items-center gap-2">
+                  </Link>
+
+                  {/* Rating – nhỏ gọn */}
+                  <div className="mt-1 flex items-center gap-2 text-slate-500">
                     <StarRating value={rating} />
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs">
                       {rating.toFixed(1)} • {formatInt(reviews)} đánh giá
                     </span>
                   </div>
-                  <p className="mt-1 font-bold text-lg text-blue-700">
-                    {formatPriceVND(p.price)}
-                  </p>
+
+                  {/* Divider nhẹ */}
+                  <div className="mt-3 border-t border-slate-100" />
+
+                  {/* Giá + nút nhỏ (tuỳ chọn) */}
+                  <div className="mt-2 flex items-center justify-between">
+                    <span
+                      className="inline-flex items-center rounded-xl px-2.5 py-1 text-[13px] font-semibold
+                           bg-blue-50 text-blue-700 border border-blue-200/60
+                           shadow-[inset_0_0_0_1px_rgba(59,130,246,.08)]"
+                    >
+                      {formatPriceVND(p.price)}
+                    </span>
+
+                    {/* nút thêm (nếu cần) – không bắt mắt */}
+                    {/* <button
+                type="button"
+                className="hidden md:inline-flex items-center px-3 py-1.5 text-[13px] font-medium
+                           rounded-lg border border-slate-200 text-slate-700 bg-white
+                           hover:bg-slate-50 hover:border-slate-300 transition"
+                onClick={...}
+              >
+                Thêm
+              </button> */}
+                  </div>
                 </div>
-              </Link>
+              </article>
             </li>
           );
         })}
+
         {pageItems.length === 0 && (
-          <li className="col-span-full text-center text-gray-400 py-12">
+          <li className="col-span-full text-center text-slate-400 py-12">
             Không tìm thấy sản phẩm.
           </li>
         )}
