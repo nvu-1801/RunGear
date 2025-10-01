@@ -17,38 +17,58 @@ export default function ProductDetailClient({ product }: { product: Product }) {
     [product.images]
   );
   const { addItem, open } = useCart();
+
   const [active, setActive] = useState(0);
   const [qty, setQty] = useState(1);
   const [color, setColor] = useState<string | null>(null);
+  const [colorError, setColorError] = useState<string | null>(null);
+
+  const [adding, setAdding] = useState(false);
+  const [added, setAdded] = useState(false);
+
   const [zoom, setZoom] = useState(false);
   const [zoomPos, setZoomPos] = useState({ x: 0, y: 0 });
   const imgRef = useRef<HTMLImageElement>(null);
 
-  const mainSrc = images[active]
-    ? imagePathToUrl(images[active])
-    : productImageUrl(product) ?? "/placeholder.png";
+  const mainSrc =
+    images[active] ? imagePathToUrl(images[active]) : productImageUrl(product) ?? "/placeholder.png";
 
   function changeQty(delta: number) {
     setQty((q) => Math.max(1, q + delta));
   }
 
-  function addToCart() {
+  async function addToCart() {
+    // bắt buộc chọn màu
+    if (!color) {
+      setColorError("Vui lòng chọn màu trước khi thêm vào giỏ.");
+      return;
+    }
+    setColorError(null);
+    if (adding) return;
+
+    setAdding(true);
+    // store sẽ tự quyết: nếu đã đăng nhập -> ghi Supabase; chưa thì lưu local
     addItem({
       id: product.id,
       slug: product.slug,
       name: product.name,
       price: product.price,
-      image: images[active]
-        ? imagePathToUrl(images[active])
-        : productImageUrl(product),
+      image: images[active] ? imagePathToUrl(images[active]) : productImageUrl(product),
       variant: color,
       qty,
     });
+
+    // UX: mở giỏ + báo “đã thêm”
     open();
+    setAdded(true);
+    setTimeout(() => setAdded(false), 1200);
+    setAdding(false);
   }
 
   function buyNow() {
+    // có thể điều hướng đến trang thanh toán sau khi add
     addToCart();
+    // router.push("/payments"); // nếu muốn “Mua ngay” chuyển trang, mở dòng này
   }
 
   return (
@@ -56,28 +76,17 @@ export default function ProductDetailClient({ product }: { product: Product }) {
       {/* Breadcrumb + Prev/Next */}
       <div className="flex items-center justify-between text-sm text-gray-500 mb-6">
         <div className="space-x-2">
-          <Link
-            href="/home"
-            className="hover:underline text-blue-600 font-medium"
-          >
+          <Link href="/home" className="hover:underline text-blue-600 font-medium">
             Trang chủ
           </Link>
           <span>/</span>
-          <span className="text-gray-700 font-semibold line-clamp-1">
-            {product.name}
-          </span>
+          <span className="text-gray-700 font-semibold line-clamp-1">{product.name}</span>
         </div>
         <div className="flex items-center gap-4">
-          <button
-            className="hover:underline hover:text-blue-600 transition"
-            onClick={() => history.back()}
-          >
+          <button className="hover:underline hover:text-blue-600 transition" onClick={() => history.back()}>
             ← Trước
           </button>
-          <button
-            className="hover:underline hover:text-blue-600 transition"
-            onClick={() => history.forward()}
-          >
+          <button className="hover:underline hover:text-blue-600 transition" onClick={() => history.forward()}>
             Tiếp →
           </button>
         </div>
@@ -87,7 +96,7 @@ export default function ProductDetailClient({ product }: { product: Product }) {
         {/* Gallery */}
         <div>
           <div
-            className="aspect-square rounded-2xl border overflow-hidden bg-white shadow-xl relative"
+            className="relative aspect-square rounded-2xl border overflow-hidden bg-white shadow-xl"
             onMouseEnter={() => setZoom(true)}
             onMouseLeave={() => setZoom(false)}
             onMouseMove={(e) => {
@@ -109,7 +118,7 @@ export default function ProductDetailClient({ product }: { product: Product }) {
               <div
                 className="absolute pointer-events-none z-20"
                 style={{
-                  left: `calc(${zoomPos.x}% - 130px)`, // 260px / 2 = 130px
+                  left: `calc(${zoomPos.x}% - 130px)`,
                   top: `calc(${zoomPos.y}% - 130px)`,
                   width: 260,
                   height: 260,
@@ -118,7 +127,7 @@ export default function ProductDetailClient({ product }: { product: Product }) {
                   border: "3px solid #3b82f6",
                   backgroundImage: `url(${mainSrc})`,
                   backgroundRepeat: "no-repeat",
-                  backgroundSize: "300% 300%", // phóng đại mạnh hơn
+                  backgroundSize: "300% 300%",
                   backgroundPosition: `${zoomPos.x}% ${zoomPos.y}%`,
                   transition: "background-position 0.1s",
                 }}
@@ -141,11 +150,7 @@ export default function ProductDetailClient({ product }: { product: Product }) {
                       className={`block aspect-square rounded-xl overflow-hidden border transition-all duration-200 ${activeCls}`}
                       aria-label={`Ảnh ${i + 1}`}
                     >
-                      <img
-                        src={src}
-                        alt={`${product.name} ${i + 1}`}
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={src} alt={`${product.name} ${i + 1}`} className="w-full h-full object-cover" />
                     </button>
                   </li>
                 );
@@ -156,9 +161,7 @@ export default function ProductDetailClient({ product }: { product: Product }) {
 
         {/* Info */}
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            {product.name}
-          </h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{product.name}</h1>
           <div className="text-gray-400 mb-4">SKU: 0011</div>
 
           <div className="text-2xl font-extrabold text-blue-700 mb-6">
@@ -176,59 +179,37 @@ export default function ProductDetailClient({ product }: { product: Product }) {
               ].map((c) => (
                 <button
                   key={c.key}
-                  onClick={() => setColor(c.key)}
+                  onClick={() => {
+                    setColor(c.key);
+                    setColorError(null);
+                  }}
                   aria-label={c.key}
-                  className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
-                    c.className
-                  } ${
+                  className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${c.className} ${
                     color === c.key
                       ? "ring-2 ring-blue-600 border-blue-600 scale-110"
                       : "border-gray-300 hover:ring-2 hover:ring-blue-300"
                   }`}
                 >
                   {color === c.key && (
-                    <svg
-                      className="w-4 h-4 text-white"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M5 13l4 4L19 7"
-                      />
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   )}
                 </button>
               ))}
             </div>
+            {colorError && <p className="mt-2 text-sm text-red-600">{colorError}</p>}
           </div>
 
           {/* Số lượng */}
           <div className="mb-6">
-            <div className="text-sm text-gray-500 font-medium mb-2">
-              Số lượng *
-            </div>
+            <div className="text-sm text-gray-500 font-medium mb-2">Số lượng *</div>
             <div className="inline-flex items-center border text-gray-700 rounded-lg overflow-hidden bg-gray-50">
-              <button
-                className="px-4 py-2 hover:bg-gray-200 text-lg"
-                onClick={() => changeQty(-1)}
-                aria-label="Giảm"
-              >
+              <button className="px-4 py-2 hover:bg-gray-200 text-lg" onClick={() => changeQty(-1)} aria-label="Giảm">
                 −
               </button>
-              <input
-                readOnly
-                value={qty}
-                className="w-12 text-center py-2 bg-transparent outline-none font-semibold"
-              />
-              <button
-                className="px-4 py-2 hover:bg-gray-200 text-lg"
-                onClick={() => changeQty(1)}
-                aria-label="Tăng"
-              >
+              <input readOnly value={qty} className="w-12 text-center py-2 bg-transparent outline-none font-semibold" />
+              <button className="px-4 py-2 hover:bg-gray-200 text-lg" onClick={() => changeQty(1)} aria-label="Tăng">
                 +
               </button>
             </div>
@@ -238,26 +219,20 @@ export default function ProductDetailClient({ product }: { product: Product }) {
           <div className="flex items-center gap-4 mb-8">
             <button
               onClick={addToCart}
-              className="h-11 px-6 rounded-lg border w-full max-w-xs bg-white text-gray-900 hover:bg-blue-50 hover:border-blue-600 transition font-semibold shadow"
+              disabled={adding}
+              className={`h-11 px-6 rounded-lg border w-full max-w-xs bg-white text-gray-900 transition font-semibold shadow
+                ${adding ? "opacity-60 pointer-events-none" : "hover:bg-blue-50 hover:border-blue-600"}`}
+              aria-live="polite"
             >
-              Thêm vào giỏ hàng
+              {added ? "Đã thêm ✓" : "Thêm vào giỏ hàng"}
             </button>
+
             <button
               onClick={buyNow}
               className="h-11 px-6 rounded-lg bg-blue-700 text-white w-full max-w-[160px] hover:bg-blue-800 transition font-semibold shadow flex items-center justify-center gap-2"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13l-1.35 2.7A2 2 0 0 0 7.48 19h9.04a2 2 0 0 0 1.83-1.3L21 13M7 13V6h13"
-                />
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13l-1.35 2.7A2 2 0 0 0 7.48 19h9.04a2 2 0 0 0 1.83-1.3L21 13M7 13V6h13" />
               </svg>
               Mua ngay
             </button>
@@ -266,12 +241,8 @@ export default function ProductDetailClient({ product }: { product: Product }) {
           {/* Mô tả */}
           {product.description && (
             <div className="mt-8">
-              <div className="text-base font-semibold text-gray-700 mb-2">
-                THÔNG TIN SẢN PHẨM
-              </div>
-              <p className="text-sm leading-6 text-gray-700 bg-gray-50 rounded-lg p-4">
-                {product.description}
-              </p>
+              <div className="text-base font-semibold text-gray-700 mb-2">THÔNG TIN SẢN PHẨM</div>
+              <p className="text-sm leading-6 text-gray-700 bg-gray-50 rounded-lg p-4">{product.description}</p>
             </div>
           )}
         </div>
