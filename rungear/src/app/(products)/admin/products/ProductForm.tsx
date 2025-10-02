@@ -4,12 +4,11 @@ import { useEffect, useState } from "react";
 
 type ProductInput = {
   name: string;
-  slug: "quần" | "áo" | "giày";
   price: number;
   stock: number;
   imageUrl?: string | null;
   status: "draft" | "active" | "hidden";
-  categories_idId?: string | null;
+  categories_idId?: "1d4478e7-c9d2-445e-8520-14dae73aac68" | "3c0144cf-7a2e-4c59-8ad7-351a27d2fc1d" | "e9819e30-a5dc-4cd1-835d-206bb882fc09";
 };
 
 type Product = ProductInput & { id: string };
@@ -24,12 +23,11 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
   const isEdit = !!initial;
   const [form, setForm] = useState<ProductInput>({
     name: "",
-    slug: "áo",
     price: 0,
     stock: 0,
     imageUrl: "",
     status: "active",
-    categories_idId: null,
+    categories_idId: "1d4478e7-c9d2-445e-8520-14dae73aac68",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +46,7 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
       ? `/api/products/${(initial as Product).id}`
       : "/api/products";
     const method = isEdit ? "PUT" : "POST";
+    console.log("Submitting form:", form);
     const r = await fetch(endpoint, {
       method,
       headers: { "Content-Type": "application/json" },
@@ -87,16 +86,17 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
               className="border px-3 py-2 rounded-md w-full"
             />
           </div>
+
           <div className="space-y-1">
-            <label className="text-sm text-gray-600">Slug</label>
+            <label className="text-sm text-gray-600">Category</label>
             <select
-              value={form.slug}
-              onChange={(e) => setForm({ ...form, slug: e.target.value as ProductInput["slug"] })}
+              value={form.categories_idId}
+              onChange={(e) => setForm({ ...form, categories_idId: e.target.value as ProductInput["categories_idId"] })}
               className="border px-3 py-2 rounded-md w-full"
             >
-              <option value="quần">quần</option>
-              <option value="áo">áo</option>
-              <option value="giày">giày</option>
+              <option value="e9819e30-a5dc-4cd1-835d-206bb882fc09">quần</option>
+              <option value="1d4478e7-c9d2-445e-8520-14dae73aac68">áo</option>
+              <option value="3c0144cf-7a2e-4c59-8ad7-351a27d2fc1d">giày</option>
             </select>
           </div>
 
@@ -148,19 +148,7 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
             </select>
           </div>
 
-          <div className="space-y-1 md:col-span-2">
-            <label className="text-sm text-gray-600">
-              categories_id ID (optional)
-            </label>
-            <input
-              value={form.categories_idId ?? ""}
-              onChange={(e) =>
-                setForm({ ...form, categories_idId: e.target.value || null })
-              }
-              className="border px-3 py-2 rounded-md w-full"
-              placeholder="uuid của categories_id"
-            />
-          </div>
+          
         </div>
 
         {error && <div className="px-4 pb-2 text-red-600 text-sm">{error}</div>}
