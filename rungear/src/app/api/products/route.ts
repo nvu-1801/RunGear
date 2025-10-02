@@ -27,23 +27,21 @@ export async function POST(req: Request) {
     const body = await req.json();
     const {
       name,
-      slug,
       price,
       stock,
       imageUrl = null,
       status = "draft",
-      categories_id = null,
+      categories_id ="1d4478e7-c9d2-445e-8520-14dae73aac68",
     } = body;
 
     // Basic validation
-    if (!name || !slug || typeof price !== "number" || typeof stock !== "number") {
+    if (!name || typeof price !== "number" || typeof stock !== "number") {
       return NextResponse.json({ message: "Invalid payload" }, { status: 400 });
     }
 
     // Map to your DB column names (adjust if your columns differ)
     const payload = {
       name,
-      slug,
       price,
       stock,
       images: imageUrl,
