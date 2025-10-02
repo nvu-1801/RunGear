@@ -1,11 +1,19 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import * as CartAPI from "@/modules/cart/cart.client";
+import { safeGetUser, isTransientNetworkError } from "@/utils/auth-safe";
 import { supabaseBrowser } from "@/libs/db/supabase/supabase-client";
 
 export type CartItem = {
-  id: string;           // product id
+  id: string; // product id
   slug: string;
   name: string;
   price: number;
@@ -75,12 +83,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems(mapped);
   }
 
-  async function mergeGuestIntoServer(guest: CartItem[]) {
-    if (!guest.length || !CartAPI?.add) return;
-    // đẩy số lượng của từng item lên server
-    await Promise.all(guest.map((g) => CartAPI.add(g.id, g.qty)));
-  }
-
   /** helper: bắt lỗi server & không để reject rò rỉ */
   async function tryServer(task: () => Promise<any>) {
     try {
@@ -94,52 +96,106 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function isLoggedIn() {
-    const { data: { user } } = await sb.auth.getUser();
+    const {
+      data: { user },
+    } = await sb.auth.getUser();
     return !!user;
   }
 
   /** ----- Auth state sync (merge guest -> server một lần) ----- */
-  useEffect(() => {
-    const sub = sb.auth.onAuthStateChange(async (_evt, sess) => {
-      try {
-        if (sess?.user) {
-          if (!syncedOnce.current) {
-            const guest = (() => {
-              try {
-                const raw = localStorage.getItem(LS_KEY);
-                return raw ? (JSON.parse(raw) as CartItem[]) : [];
-              } catch {
-                return [];
-              }
-            })();
-            try {
-              await mergeGuestIntoServer(guest);
-            } catch (e) {
-              console.warn("merge guest->server failed:", supaMsg(e));
-            }
-            syncedOnce.current = true;
-          }
-          try {
-            await loadFromServerReplaceLocal();
-          } catch (e) {
-            console.warn("load server cart failed:", supaMsg(e));
-          }
+ useEffect(() => {
+  const { data: sub } = sb.auth.onAuthStateChange(async (evt, sess) => {
+    const online = typeof navigator === "undefined" ? true : navigator.onLine;
+
+    try {
+      if (evt === "INITIAL_SESSION") {
+        if (sess?.user && online) {
+          await loadFromServerReplaceLocal();
+          syncedOnce.current = true;
         } else {
-          // logout -> quay về local
-          try {
-            const raw = localStorage.getItem(LS_KEY);
-            setItems(raw ? JSON.parse(raw) : []);
-          } catch {
-            setItems([]);
-          }
-          syncedOnce.current = false;
+          syncedOnce.current = false; // giữ local khi offline
         }
-      } catch (e) {
-        console.warn("onAuthStateChange handler error:", supaMsg(e));
+        return;
       }
-    });
-    return () => sub.data.subscription.unsubscribe();
-  }, []);
+
+      if (evt === "SIGNED_IN" && sess?.user) {
+        if (!online) return; // chờ online để merge
+
+        const mergedFor = localStorage.getItem("rg_cart_merged_for");
+        if (mergedFor !== sess.user.id) {
+          const guest = (() => {
+            try {
+              const raw = localStorage.getItem(LS_KEY);
+              return raw ? (JSON.parse(raw) as CartItem[]) : [];
+            } catch { return []; }
+          })();
+
+          try {
+            await mergeGuestIntoServerSafe(guest);   // bản safe (max qty) từ hướng dẫn trước
+          } catch (e) {
+            if (!isTransientNetworkError(e)) console.warn("merge failed:", supaMsg(e));
+          }
+          localStorage.setItem("rg_cart_merged_for", sess.user.id);
+          localStorage.removeItem(LS_KEY);
+        }
+        await loadFromServerReplaceLocal();
+        syncedOnce.current = true;
+        return;
+      }
+
+      if (evt === "SIGNED_OUT") {
+        try {
+          const raw = localStorage.getItem(LS_KEY);
+          setItems(raw ? JSON.parse(raw) : []);
+        } catch { setItems([]); }
+        syncedOnce.current = false;
+        localStorage.removeItem("rg_cart_merged_for");
+        return;
+      }
+    } catch (e) {
+      // đừng để reject rơi ra ngoài
+      console.warn("auth state handler:", supaMsg(e));
+    }
+  });
+
+  // khi online lại → đồng bộ cart từ server
+  const onOnline = async () => {
+    try {
+      const user = await safeGetUser(sb);
+      if (user) await loadFromServerReplaceLocal();
+    } catch {}
+  };
+  window.addEventListener("online", onOnline);
+
+  return () => {
+    sub.subscription.unsubscribe();
+    window.removeEventListener("online", onOnline);
+  };
+}, []);
+
+
+  async function mergeGuestIntoServerSafe(guest: CartItem[]) {
+    if (!guest.length || !CartAPI?.list) return;
+
+    // Lấy giỏ hiện tại trên server
+    const serverRows = await CartAPI.list();
+    const serverMap = new Map<string, number>(
+      serverRows.map((r) => [r.product_id, r.qty])
+    );
+
+    for (const g of guest) {
+      const existing = serverMap.get(g.id) ?? 0;
+      const target = Math.max(existing, g.qty);
+
+      if (existing === 0) {
+        // chưa có -> add đúng số lượng guest
+        if (CartAPI?.add) await CartAPI.add(g.id, g.qty);
+      } else if (target !== existing) {
+        // đã có -> setQty về max (không cộng dồn)
+        if (CartAPI?.setQty) await CartAPI.setQty(g.id, target);
+      }
+    }
+  }
 
   /** ----- Local optimistic helpers ----- */
   function upsertLocal(it: CartItem) {
@@ -156,7 +212,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     });
   }
 
-  function setQtyLocal(id: string, variant: string | null | undefined, next: number) {
+  function setQtyLocal(
+    id: string,
+    variant: string | null | undefined,
+    next: number
+  ) {
     setItems((prev) =>
       prev.map((i) =>
         i.id === id && (i.variant ?? null) === (variant ?? null)
@@ -168,7 +228,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   function removeLocal(id: string, variant?: string | null) {
     setItems((prev) =>
-      prev.filter((i) => !(i.id === id && (i.variant ?? null) === (variant ?? null)))
+      prev.filter(
+        (i) => !(i.id === id && (i.variant ?? null) === (variant ?? null))
+      )
     );
   }
 
