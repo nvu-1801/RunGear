@@ -1,14 +1,13 @@
-// app/api/ai/chat/route.ts
 import { NextRequest } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { SALES_SYSTEM_PROMPT, renderPrompt } from "../prompts/sales-system";
 
 export const runtime = "nodejs";
 
-// Ưu tiên 2.5 Flash, có fallback hợp lệ khác
 const MODEL_CANDIDATES = [
   process.env.GEMINI_MODEL || "gemini-2.5-flash",
-  "gemini-2.5-pro",        // nếu cần suy luận nặng
-  "gemini-1.5-flash",      // fallback đời 1.5 vẫn chạy v1
+  "gemini-2.5-pro",
+  "gemini-1.5-flash",
 ];
 
 export async function POST(req: NextRequest) {
@@ -19,16 +18,15 @@ export async function POST(req: NextRequest) {
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.error("[AI] Missing GEMINI_API_KEY");
-      return new Response("Server missing GEMINI_API_KEY", { status: 500 });
-    }
+    if (!apiKey) return new Response("Server missing GEMINI_API_KEY", { status: 500 });
 
-    // Ép dùng API v1 (SDK mới gọi là Google Gen AI SDK)
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!); 
+    // Tạo client (nếu SDK của bạn hỗ trợ object, dùng { apiKey }).
+    const genAI =
+      // @google/generative-ai các bản cũ dùng ctor dạng string:
+      new GoogleGenerativeAI(apiKey);
 
-    // Chuẩn hóa lịch sử thành contents
-    const histContents: Array<{ role: "user" | "model"; parts: { text: string }[] }> =
+    // Lịch sử → contents
+    const histContents =
       Array.isArray(history)
         ? history
             .filter((m: any) => m && typeof m.text === "string" && (m.role === "user" || m.role === "assistant"))
@@ -38,34 +36,30 @@ export async function POST(req: NextRequest) {
             }))
         : [];
 
-    const systemPrompt =
-      "Bạn là Run Gear AI. Trả lời bằng tiếng Việt, ngắn gọn, hữu ích, thân thiện.";
+    // Render biến trong prompt (vd: STORE_NAME lấy từ ENV)
+    const systemPrompt = renderPrompt(SALES_SYSTEM_PROMPT, {
+      STORE_NAME: process.env.STORE_NAME ?? "Run Gear",
+    });
 
-    // Thử lần lượt các model hợp lệ
     const tryModelsInOrder = async () => {
       let lastErr: any = null;
-
       for (const modelId of MODEL_CANDIDATES) {
         try {
           const model = genAI.getGenerativeModel({
             model: modelId,
-            systemInstruction: systemPrompt, // đặt system đúng chỗ
+            systemInstruction: systemPrompt, // ✅ đặt system ở init
           });
-
-          // Streaming — SDK v1
           const result = await model.generateContentStream({
             contents: [...histContents, { role: "user", parts: [{ text: prompt }] }],
           });
-
           return { modelId, stream: result.stream };
         } catch (e: any) {
           const msg = e?.message || String(e);
-          // Model không hỗ trợ/v1 404 → thử model tiếp theo
           if (msg.includes("404") || msg.includes("not found") || msg.includes("is not supported")) {
             lastErr = e;
             continue;
           }
-          throw e; // lỗi khác (quota/auth/…)
+          throw e;
         }
       }
       throw lastErr ?? new Error("No available Gemini model");
@@ -97,7 +91,6 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (e: any) {
-    console.error("[AI route fatal]:", e?.message || String(e));
     return new Response(e?.message || String(e), { status: 500 });
   }
 }
