@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import ProductForm from "./ProductForm";
 import { use } from "react";
 
-type Category = { id: string; name: string; slug: string };
+type categories_id = { id: string; name: string; slug: string };
 type Product = {
   id: string;
   name: string;
@@ -12,12 +12,12 @@ type Product = {
   price: number;
   stock: number;
   imageUrl?: string | null;
-  status: "DRAFT" | "ACTIVE" | "HIDDEN";
-  category?: Category | null;
+  status: "draft" | "active" | "hidden";
+  categories_id?: "1d4478e7-c9d2-445e-8520-14dae73aac68" | "3c0144cf-7a2e-4c59-8ad7-351a27d2fc1d" | "e9819e30-a5dc-4cd1-835d-206bb882fc09";
 };
 
 type PageResp = {
-  items: (Product & { category?: Category | null })[];
+  items: (Product & { categories_id?: categories_id | null })[];
   total: number;
   page: number;
   pageSize: number;
@@ -26,41 +26,52 @@ type PageResp = {
 export default function ProductManager({
   posts,
 }: {
-  posts: Promise<{ id: string; name: string; slug: string, price: number, stock: number, imageUrl?: string | null, status: "DRAFT" | "ACTIVE" | "HIDDEN", category?: Category | null }[]>
+  posts: Promise<
+    {
+      id: string;
+      name: string;
+      slug: string;
+      price: number;
+      stock: number;
+      imageUrl?: string | null;
+      status: "draft" | "active" | "hidden";
+      categories_id?: categories_id;
+    }[]
+  >;
 }) {
   const [allPosts, setAllPosts] = useState<Product[]>([]);
   useEffect(() => {
     // Hàm async để lấy dữ liệu từ Promise 'posts'
-  const fetchList = async () => {
-  setLoading(true);
-  const url = new URL("/api/products", window.location.origin);
-  console.log('Fetching from URL:', url.toString());
+    const fetchList = async () => {
+      setLoading(true);
+      const url = new URL("/api/products", window.location.origin);
+      console.log("Fetching from URL:", url.toString());
 
-  // Thêm query params nếu có
-  if (q) url.searchParams.set("q", q);
-  url.searchParams.set("page", String(page));
-  url.searchParams.set("pageSize", String(pageSize));
-  
-  try {
-    const r = await fetch(url, { cache: "no-store" });
+      // Thêm query params nếu có
+      if (q) url.searchParams.set("q", q);
+      url.searchParams.set("page", String(page));
+      url.searchParams.set("pageSize", String(pageSize));
 
-    // Kiểm tra response
-    console.log('Response:', r);
-    if (!r.ok) {
-      throw new Error('Network response was not ok');
-    }
+      try {
+        const r = await fetch(url, { cache: "no-store" });
 
-    const json = await r.json();
-    console.log('JSON Data:', json); // Kiểm tra dữ liệu JSON nhận được
+        // Kiểm tra response
+        console.log("Response:", r);
+        if (!r.ok) {
+          throw new Error("Network response was not ok");
+        }
 
-    setData(json); // Cập nhật dữ liệu vào state
-    return json;
-  } catch (error) {
-    console.error('Fetch Error:', error);
-  } finally {
-    setLoading(false); // Kết thúc loading
-  }
-};
+        const json = await r.json();
+        console.log("JSON Data:", json); // Kiểm tra dữ liệu JSON nhận được
+
+        setData(json); // Cập nhật dữ liệu vào state
+        return json;
+      } catch (error) {
+        console.error("Fetch Error:", error);
+      } finally {
+        setLoading(false); // Kết thúc loading
+      }
+    };
     const fetchData = async () => {
       try {
         let data = await fetchList();
@@ -69,7 +80,7 @@ export default function ProductManager({
         console.error("Error fetching posts:", error);
       }
     };
-    
+
     fetchData();
   }, [posts]); // Mỗi khi posts thay đổi, sẽ gọi lại fetchData()
 
@@ -77,7 +88,12 @@ export default function ProductManager({
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<PageResp>({ items: [], total: 1, page: 1, pageSize: 1 });
+  const [data, setData] = useState<PageResp>({
+    items: [],
+    total: 1,
+    page: 1,
+    pageSize: 1,
+  });
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const totalPages = useMemo(
@@ -85,43 +101,40 @@ export default function ProductManager({
     [data.total, data.pageSize]
   );
 
-  
-
   const fetchList = async () => {
-  setLoading(true);
-  const url = new URL("/api/products", window.location.origin);
-  console.log('Fetching from URL:', url.toString());
+    setLoading(true);
+    const url = new URL("/api/products", window.location.origin);
+    console.log("Fetching from URL:", url.toString());
 
-  // Thêm query params nếu có
-  if (q) url.searchParams.set("q", q);
-  url.searchParams.set("page", String(page));
-  url.searchParams.set("pageSize", String(pageSize));
-  
-  try {
-    const r = await fetch(url, { cache: "no-store" });
+    // Thêm query params nếu có
+    if (q) url.searchParams.set("q", q);
+    url.searchParams.set("page", String(page));
+    url.searchParams.set("pageSize", String(pageSize));
 
-    // Kiểm tra response
-    console.log('Response:', r);
-    if (!r.ok) {
-      throw new Error('Network response was not ok');
+    try {
+      const r = await fetch(url, { cache: "no-store" });
+
+      // Kiểm tra response
+      console.log("Response:", r);
+      if (!r.ok) {
+        throw new Error("Network response was not ok");
+      }
+
+      const json = await r.json();
+      console.log("JSON Data:", json); // Kiểm tra dữ liệu JSON nhận được
+
+      setData(json); // Cập nhật dữ liệu vào state
+    } catch (error) {
+      console.error("Fetch Error:", error);
+    } finally {
+      setLoading(false); // Kết thúc loading
     }
+  };
 
-    const json = await r.json();
-    console.log('JSON Data:', json); // Kiểm tra dữ liệu JSON nhận được
-
-    setData(json); // Cập nhật dữ liệu vào state
-  } catch (error) {
-    console.error('Fetch Error:', error);
-  } finally {
-    setLoading(false); // Kết thúc loading
-  }
-};
-
-useEffect(() => {
-  fetchList();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [q, page, pageSize]);
-
+  useEffect(() => {
+    fetchList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, page, pageSize]);
 
   const onCreate = () => {
     setEditing(null);
@@ -155,7 +168,9 @@ useEffect(() => {
             placeholder="Search by name or slug..."
             className="border px-3 text-gray-700 py-2 rounded-md w-72"
           />
-          {loading && <div className="animate-spin w-5 h-5 border-2 border-black border-t-transparent rounded-full" />}
+          {loading && (
+            <div className="animate-spin w-5 h-5 border-2 border-black border-t-transparent rounded-full" />
+          )}
         </div>
         <button
           onClick={onCreate}
@@ -179,59 +194,58 @@ useEffect(() => {
             </tr>
           </thead>
           <tbody>
-  {Array.isArray(allPosts) && allPosts.length > 0 ? (
-    allPosts.map((p) => (
-      <tr key={p.id} className="border-t">
-        <td className="p-3">
-          <div className="flex items-center gap-3">
-            <img
-              src={p.imageUrl || "https://placehold.co/60x60"}
-              alt={p.name}
-              className="w-12 h-12 rounded-lg object-cover"
-            />
-            <div>
-              <div className="font-medium">{p.name}</div>
-              <div className="text-gray-500">{p.slug}</div>
-            </div>
-          </div>
-        </td>
-        <td className="p-3">{p.category?.name ?? "-"}</td>
-        <td className="p-3">{(p.price / 1).toLocaleString()} ₫</td>
-        <td className="p-3">{p.stock}</td>
-        <td className="p-3">
-          <span className="px-2 py-1 rounded-lg border text-xs">
-            {p.status}
-          </span>
-        </td>
-        <td className="p-3">
-          <div className="flex gap-2 justify-end">
-            <button
-              onClick={() => onEdit(p)}
-              className="px-3 py-1 rounded-lg border hover:bg-gray-50"
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => onDelete(p.id)}
-              className="px-3 py-1 rounded-lg border hover:bg-gray-50"
-            >
-              Delete
-            </button>
-          </div>
-        </td>
-      </tr>
-    ))
-  ) : (
-    <tr>
-      <td colSpan={6} className="p-6 text-center text-gray-500">
-        {loading ? "Loading..." : "No products found."}
-      </td>
-    </tr>
-  )}
-</tbody>
+            {Array.isArray(allPosts) && allPosts.length > 0 ? (
+              allPosts.map((p) => (
+                <tr key={p.id} className="border-t">
+                  <td className="p-3">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={p.imageUrl || "https://placehold.co/60x60"}
+                        alt={p.name}
+                        className="w-12 h-12 rounded-lg object-cover"
+                      />
+                      <div>
+                        <div className="font-medium">{p.name}</div>
+                        <div className="text-gray-500">{p.slug}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="p-3">{p.categories_id?.name ?? "-"}</td>
+                  <td className="p-3">{(p.price / 1).toLocaleString()} ₫</td>
+                  <td className="p-3">{p.stock}</td>
+                  <td className="p-3">
+                    <span className="px-2 py-1 rounded-lg border text-xs">
+                      {p.status}
+                    </span>
+                  </td>
+                  <td className="p-3">
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        onClick={() => onEdit(p)}
+                        className="px-3 py-1 rounded-lg border hover:bg-gray-50"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => onDelete(p.id)}
+                        className="px-3 py-1 rounded-lg border hover:bg-gray-50"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={6} className="p-6 text-center text-gray-500">
+                  {loading ? "Loading..." : "No products found."}
+                </td>
+              </tr>
+            )}
+          </tbody>
         </table>
       </div>
-
 
       {/* Pagination */}
       <div className="flex items-center justify-between">

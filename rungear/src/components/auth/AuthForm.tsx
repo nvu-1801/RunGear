@@ -129,12 +129,12 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
             >
               Gửi lại email xác nhận
             </button>
-            <a
+            <link
               href="/auth/signin"
               className="text-emerald-700 underline underline-offset-2 font-medium"
             >
               Đã xác nhận? Đăng nhập
-            </a>
+            </link>
           </div>
         </div>
       )}

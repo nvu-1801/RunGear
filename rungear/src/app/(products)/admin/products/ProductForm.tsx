@@ -4,12 +4,11 @@ import { useEffect, useState } from "react";
 
 type ProductInput = {
   name: string;
-  slug: string;
   price: number;
   stock: number;
   imageUrl?: string | null;
-  status: "DRAFT" | "ACTIVE" | "HIDDEN";
-  categoryId?: string | null;
+  status: "draft" | "active" | "hidden";
+  categories_idId?: "1d4478e7-c9d2-445e-8520-14dae73aac68" | "3c0144cf-7a2e-4c59-8ad7-351a27d2fc1d" | "e9819e30-a5dc-4cd1-835d-206bb882fc09";
 };
 
 type Product = ProductInput & { id: string };
@@ -24,12 +23,11 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
   const isEdit = !!initial;
   const [form, setForm] = useState<ProductInput>({
     name: "",
-    slug: "",
     price: 0,
     stock: 0,
     imageUrl: "",
-    status: "DRAFT",
-    categoryId: null,
+    status: "active",
+    categories_idId: "1d4478e7-c9d2-445e-8520-14dae73aac68",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,9 +43,10 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
     setSaving(true);
     setError(null);
     const endpoint = isEdit
-      ? `/api/admin/products/${(initial as Product).id}`
-      : "/api/admin/products";
+      ? `/api/products/${(initial as Product).id}`
+      : "/api/products";
     const method = isEdit ? "PUT" : "POST";
+    console.log("Submitting form:", form);
     const r = await fetch(endpoint, {
       method,
       headers: { "Content-Type": "application/json" },
@@ -70,7 +69,12 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
           <h2 className="text-lg font-semibold">
             {isEdit ? "Edit Product" : "New Product"}
           </h2>
-          <button onClick={onClose} className="px-2 py-1 rounded-lg hover:bg-gray-100">✕</button>
+          <button
+            onClick={onClose}
+            className="px-2 py-1 rounded-lg hover:bg-gray-100"
+          >
+            ✕
+          </button>
         </div>
 
         <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -82,13 +86,18 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
               className="border px-3 py-2 rounded-md w-full"
             />
           </div>
+
           <div className="space-y-1">
-            <label className="text-sm text-gray-600">Slug</label>
-            <input
-              value={form.slug}
-              onChange={(e) => setForm({ ...form, slug: e.target.value })}
+            <label className="text-sm text-gray-600">Category</label>
+            <select
+              value={form.categories_idId}
+              onChange={(e) => setForm({ ...form, categories_idId: e.target.value as ProductInput["categories_idId"] })}
               className="border px-3 py-2 rounded-md w-full"
-            />
+            >
+              <option value="e9819e30-a5dc-4cd1-835d-206bb882fc09">quần</option>
+              <option value="1d4478e7-c9d2-445e-8520-14dae73aac68">áo</option>
+              <option value="3c0144cf-7a2e-4c59-8ad7-351a27d2fc1d">giày</option>
+            </select>
           </div>
 
           <div className="space-y-1">
@@ -96,7 +105,9 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
             <input
               type="number"
               value={form.price}
-              onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
+              onChange={(e) =>
+                setForm({ ...form, price: Number(e.target.value) })
+              }
               className="border px-3 py-2 rounded-md w-full"
             />
           </div>
@@ -105,7 +116,9 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
             <input
               type="number"
               value={form.stock}
-              onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })}
+              onChange={(e) =>
+                setForm({ ...form, stock: Number(e.target.value) })
+              }
               className="border px-3 py-2 rounded-md w-full"
             />
           </div>
@@ -124,30 +137,26 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
             <label className="text-sm text-gray-600">Status</label>
             <select
               value={form.status}
-              onChange={(e) => setForm({ ...form, status: e.target.value as any })}
+              onChange={(e) =>
+                setForm({ ...form, status: e.target.value as any })
+              }
               className="border px-3 py-2 rounded-md w-full"
             >
-              <option value="DRAFT">DRAFT</option>
-              <option value="ACTIVE">ACTIVE</option>
-              <option value="HIDDEN">HIDDEN</option>
+              <option value="DRAFT">draft</option>
+              <option value="ACTIVE">active</option>
+              <option value="HIDDEN">hidden</option>
             </select>
           </div>
 
-          <div className="space-y-1 md:col-span-2">
-            <label className="text-sm text-gray-600">Category ID (optional)</label>
-            <input
-              value={form.categoryId ?? ""}
-              onChange={(e) => setForm({ ...form, categoryId: e.target.value || null })}
-              className="border px-3 py-2 rounded-md w-full"
-              placeholder="uuid của Category"
-            />
-          </div>
+          
         </div>
 
         {error && <div className="px-4 pb-2 text-red-600 text-sm">{error}</div>}
 
         <div className="p-4 border-t flex items-center justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg border">Cancel</button>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg border">
+            Cancel
+          </button>
           <button
             onClick={submit}
             disabled={saving}

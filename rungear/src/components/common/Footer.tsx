@@ -1,150 +1,229 @@
-export default function Footer() {
+"use client";
+
+import React from "react";
+import {
+  Mail,
+  ArrowUp,
+  Facebook,
+  Instagram,
+  Twitter,
+  Youtube,
+  MapPin,
+  Phone,
+  Clock,
+  Globe,
+  CreditCard,
+  Apple
+} from "lucide-react";
+
+export default function Footer({ brand = "Shop" }: { brand?: string }) {
+  const [email, setEmail] = React.useState("");
+  const [message, setMessage] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const year = new Date().getFullYear();
+
+  function validateEmail(v: string) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  }
+
+  async function onSubscribe(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage(null);
+    setError(null);
+    if (!validateEmail(email)) {
+      setError("Email không hợp lệ");
+      return;
+    }
+    try {
+      // OPTIONAL: hook to your API route if you have one
+      // await fetch("/api/newsletter/subscribe", { method: "POST", body: JSON.stringify({ email }) });
+      setMessage("Đăng ký nhận tin thành công ✨");
+      setEmail("");
+    } catch (err) {
+      setError("Có lỗi xảy ra. Vui lòng thử lại.");
+    }
+  }
+
+  function scrollToTop() {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  const sections: { title: string; links: { label: string; href: string }[] }[] = [
+    {
+      title: "Shop",
+      links: [
+        { label: "Sản phẩm mới", href: "/new" },
+        { label: "Bán chạy", href: "/trending" },
+        { label: "Khuyến mãi", href: "/sale" },
+        { label: "Bộ sưu tập", href: "/collections" }
+      ]
+    },
+    {
+      title: "Learn",
+      links: [
+        { label: "Công thức", href: "/recipes" },
+        { label: "Blog nấu ăn", href: "/blog" },
+        { label: "Video hướng dẫn", href: "/videos" },
+        { label: "FAQ", href: "/faq" }
+      ]
+    },
+    {
+      title: "Company",
+      links: [
+        { label: "Về chúng tôi", href: "/about" },
+        { label: "Tuyển dụng", href: "/careers" },
+        { label: "Đối tác", href: "/partners" },
+        { label: "Liên hệ", href: "/contact" }
+      ]
+    },
+    {
+      title: "Support",
+      links: [
+        { label: "Trung tâm hỗ trợ", href: "/support" },
+        { label: "Theo dõi đơn hàng", href: "/orders/track" },
+        { label: "Chính sách đổi trả", href: "/refund" },
+        { label: "Bảo hành", href: "/warranty" }
+      ]
+    }
+  ];
+
   return (
-    <footer className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-gray-300">
-      <div className="max-w-6xl mx-auto px-4 py-14 grid grid-cols-1 md:grid-cols-4 gap-10">
-        {/* Logo & giới thiệu */}
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-3xl font-extrabold text-white tracking-tight">
-              RunGear
-            </span>
-            <span className="ml-2 px-2 py-0.5 rounded-lg bg-blue-600 text-xs font-semibold text-white">
-              Official
-            </span>
+    <footer className="mt-16 border-t bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:bg-neutral-950/80 dark:border-neutral-800">
+      {/* Gradient accent line */}
+      <div className="h-[3px] w-full bg-gradient-to-r from-indigo-500 via-fuchsia-500 to-emerald-500" />
+
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 gap-10 py-12 md:grid-cols-3 lg:grid-cols-4">
+          {/* Brand + subscribe */}
+          <div className="md:col-span-1">
+            <div className="flex items-center gap-2">
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-emerald-500 text-white shadow">
+                <Apple className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">{brand}</h3>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">Nấu ăn dễ dàng, mỗi ngày ngon hơn.</p>
+              </div>
+            </div>
+
+            <form onSubmit={onSubscribe} className="mt-6 space-y-3">
+              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Nhận tin khuyến mãi & công thức</label>
+              <div className="flex overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm ring-1 ring-transparent focus-within:ring-indigo-400 dark:border-neutral-800 dark:bg-neutral-900">
+                <div className="grid place-items-center px-3 text-neutral-500">
+                  <Mail className="h-4 w-4" />
+                </div>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@mail.com"
+                  className="w-full bg-transparent px-3 py-2 outline-none placeholder:text-neutral-400"
+                />
+                <button
+                  type="submit"
+                  className="rounded-l-none bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-black dark:bg-neutral-200 dark:text-neutral-900 dark:hover:bg-white"
+                >
+                  Đăng ký
+                </button>
+              </div>
+              {message && <p className="text-xs text-emerald-600">{message}</p>}
+              {error && <p className="text-xs text-rose-600">{error}</p>}
+            </form>
+
+            {/* Socials */}
+            <div className="mt-6 flex items-center gap-3 text-neutral-600 dark:text-neutral-400">
+              <a href="#" aria-label="Facebook" className="rounded-full border p-2 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900"><Facebook className="h-4 w-4"/></a>
+              <a href="#" aria-label="Instagram" className="rounded-full border p-2 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900"><Instagram className="h-4 w-4"/></a>
+              <a href="#" aria-label="Twitter" className="rounded-full border p-2 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900"><Twitter className="h-4 w-4"/></a>
+              <a href="#" aria-label="YouTube" className="rounded-full border p-2 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900"><Youtube className="h-4 w-4"/></a>
+            </div>
           </div>
-          <p className="mt-4 text-sm text-gray-400 leading-relaxed">
-            Cửa hàng thể thao chuyên cung cấp giày chạy bộ, quần áo và phụ kiện
-            chính hãng.
-            <br />
-            <span className="text-blue-400 font-medium">
-              Đồng hành cùng bạn trên mọi chặng đường.
-            </span>
-          </p>
+
+          {/* Link sections */}
+          {sections.map((sec) => (
+            <nav key={sec.title} aria-label={sec.title} className="md:col-span-1">
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-neutral-700 dark:text-neutral-300">{sec.title}</h4>
+              <ul className="mt-4 space-y-2">
+                {sec.links.map((l) => (
+                  <li key={l.href}>
+                    <a href={l.href} className="text-neutral-600 transition hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100">
+                      {l.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ))}
         </div>
 
-        {/* Menu nhanh */}
-        <div>
-          <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-3">
-            Sản phẩm
-          </h3>
-          <ul className="space-y-2">
-            <li>
-              <a
-                href="/home?cat=giay"
-                className="hover:text-blue-400 transition"
-              >
-                Giày
-              </a>
-            </li>
-            <li>
-              <a
-                href="/home?cat=quan-ao"
-                className="hover:text-blue-400 transition"
-              >
-                Quần áo
-              </a>
-            </li>
-            <li>
-              <a href="/home" className="hover:text-blue-400 transition">
-                Phụ kiện
-              </a>
-            </li>
-          </ul>
-        </div>
-
-        {/* Chính sách */}
-        <div>
-          <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-3">
-            Chính sách
-          </h3>
-          <ul className="space-y-2">
-            <li>
-              <a href="/shipping" className="hover:text-blue-400 transition">
-                Giao hàng
-              </a>
-            </li>
-            <li>
-              <a href="/returns" className="hover:text-blue-400 transition">
-                Đổi trả
-              </a>
-            </li>
-            <li>
-              <a href="/faq" className="hover:text-blue-400 transition">
-                Hỏi đáp
-              </a>
-            </li>
-          </ul>
-        </div>
-
-        {/* Liên hệ */}
-        <div>
-          <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-3">
-            Liên hệ
-          </h3>
-          <ul className="space-y-2 text-sm">
-            <li>
-              Email:{" "}
-              <a
-                href="mailto:support@rungear.vn"
-                className="hover:text-blue-400 transition"
-              >
-                support@rungear.vn
-              </a>
-            </li>
-            <li>
-              Hotline:{" "}
-              <a
-                href="tel:0123456789"
-                className="hover:text-blue-400 transition"
-              >
-                0123 456 789
-              </a>
-            </li>
-            <li>Địa chỉ: 123 Nguyễn Huệ, Quy Nhơn</li>
-          </ul>
-          <div className="flex space-x-3 mt-5">
-            <a href="#" aria-label="Facebook" className="group">
-              <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-gray-800 group-hover:bg-blue-600 transition">
-                <svg
-                  className="w-5 h-5 text-white"
-                  fill="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M22 12a10 10 0 10-11.5 9.9v-7h-2v-3h2v-2c0-2 1.2-3 3-3 .9 0 1.8.2 1.8.2v2h-1c-1 0-1.3.6-1.3 1.2V12h2.6l-.4 3h-2.2v7A10 10 0 0022 12z" />
-                </svg>
-              </span>
-            </a>
-            <a href="#" aria-label="Instagram" className="group">
-              <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-gray-800 group-hover:bg-pink-500 transition">
-                <svg
-                  className="w-5 h-5 text-white"
-                  fill="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M7 2C4.2 2 2 4.2 2 7v10c0 2.8 2.2 5 5 5h10c2.8 0 5-2.2 5-5V7c0-2.8-2.2-5-5-5H7zm10 2c1.7 0 3 1.3 3 3v10c0 1.7-1.3 3-3 3H7c-1.7 0-3-1.3-3-3V7c0-1.7 1.3-3 3-3h10zm-5 3a5 5 0 100 10 5 5 0 000-10zm0 2a3 3 0 110 6 3 3 0 010-6zm4.8-.9a1.2 1.2 0 11-2.4 0 1.2 1.2 0 012.4 0z" />
-                </svg>
-              </span>
-            </a>
-            <a href="#" aria-label="TikTok" className="group">
-              <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-gray-800 group-hover:bg-gray-100 group-hover:text-black transition">
-                <svg
-                  className="w-5 h-5 text-white group-hover:text-black"
-                  fill="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M16 8.1a4.9 4.9 0 01-1-.1V14a5 5 0 11-5-5v2.1a3 3 0 103 3V3h3a5 5 0 002 4z" />
-                </svg>
-              </span>
-            </a>
+        {/* Info strip */}
+        <div className="grid grid-cols-1 gap-6 rounded-2xl border bg-white/60 p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/60 md:grid-cols-3">
+          <div className="flex items-start gap-3">
+            <MapPin className="mt-0.5 h-5 w-5 text-neutral-500"/>
+            <div>
+              <div className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">Cửa hàng</div>
+              <div className="text-sm text-neutral-600 dark:text-neutral-400">123 Đường ABC, Quận 1, TP.HCM</div>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <Phone className="mt-0.5 h-5 w-5 text-neutral-500"/>
+            <div>
+              <div className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">Hỗ trợ</div>
+              <div className="text-sm text-neutral-600 dark:text-neutral-400">(+84) 900 000 000 · hello@{brand.toLowerCase()}.com</div>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <Clock className="mt-0.5 h-5 w-5 text-neutral-500"/>
+            <div>
+              <div className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">Giờ làm việc</div>
+              <div className="text-sm text-neutral-600 dark:text-neutral-400">T2–T6 9:00–18:00 · T7 9:00–12:00</div>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Bản quyền */}
-      <div className="border-t border-gray-800 py-4 text-center text-xs text-gray-500">
-        © {new Date().getFullYear()}{" "}
-        <span className="font-semibold text-white">RunGear</span>. All rights
-        reserved.
+        {/* Selectors & payments */}
+        <div className="mt-6 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+              <Globe className="h-4 w-4 text-neutral-500"/>
+              <select className="bg-transparent outline-none">
+                <option>Tiếng Việt</option>
+                <option>English</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+              <CreditCard className="h-4 w-4 text-neutral-500"/>
+              <select className="bg-transparent outline-none">
+                <option>VND (₫)</option>
+                <option>USD ($)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400">
+            <span className="rounded-md border px-2 py-1 dark:border-neutral-700">VISA</span>
+            <span className="rounded-md border px-2 py-1 dark:border-neutral-700">Mastercard</span>
+            <span className="rounded-md border px-2 py-1 dark:border-neutral-700">JCB</span>
+            <span className="rounded-md border px-2 py-1 dark:border-neutral-700">Momo</span>
+            <span className="rounded-md border px-2 py-1 dark:border-neutral-700">ZaloPay</span>
+          </div>
+        </div>
+
+        {/* Bottom bar */}
+        <div className="mt-8 flex flex-col items-start justify-between gap-4 border-t py-6 text-sm text-neutral-600 dark:border-neutral-800 dark:text-neutral-400 md:flex-row md:items-center">
+          <p>© {year} {brand}. All rights reserved.</p>
+          <div className="flex flex-wrap items-center gap-4">
+            <a href="/privacy" className="hover:text-neutral-900 dark:hover:text-neutral-100">Privacy</a>
+            <a href="/terms" className="hover:text-neutral-900 dark:hover:text-neutral-100">Terms</a>
+            <a href="/cookies" className="hover:text-neutral-900 dark:hover:text-neutral-100">Cookies</a>
+            <button onClick={scrollToTop} className="inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-900">
+              <ArrowUp className="h-4 w-4" /> Lên đầu trang
+            </button>
+          </div>
+        </div>
       </div>
     </footer>
   );
