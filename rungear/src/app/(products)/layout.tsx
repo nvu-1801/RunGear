@@ -2,8 +2,6 @@ import Link from "next/link";
 import { supabaseServer } from "@/libs/db/supabase/supabase-server";
 import SignOutButton from "@/components/auth/SignOutButton";
 import CartButton from "@/components/cart/CartButton";
-// import CartDrawer from "@/components/cart/CartDrawer";
-// import { GlobalLoading } from "@/components/common/GlobalLoading";
 import AdminDropdown from "@/components/common/AdminDropdown";
 import Footer from "@/components/common/Footer";
 

@@ -8,12 +8,12 @@ type categories_id = { id: string; name: string; slug: string };
 type Product = {
   id: string;
   name: string;
-  slug: "quần" | "áo" | "giày";
+  slug: string;
   price: number;
   stock: number;
   imageUrl?: string | null;
   status: "draft" | "active" | "hidden";
-  categories_id?: categories_id | null;
+  categories_id?: "1d4478e7-c9d2-445e-8520-14dae73aac68" | "3c0144cf-7a2e-4c59-8ad7-351a27d2fc1d" | "e9819e30-a5dc-4cd1-835d-206bb882fc09";
 };
 
 type PageResp = {
@@ -30,12 +30,12 @@ export default function ProductManager({
     {
       id: string;
       name: string;
-      slug: "quần" | "áo" | "giày";
+      slug: string;
       price: number;
       stock: number;
       imageUrl?: string | null;
       status: "draft" | "active" | "hidden";
-      categories_id?: categories_id | null;
+      categories_id?: categories_id;
     }[]
   >;
 }) {
@@ -186,7 +186,7 @@ export default function ProductManager({
           <thead className="bg-gray-50">
             <tr>
               <th className="text-left p-3">Product</th>
-              <th className="text-left p-3">categories_id</th>
+              <th className="text-left p-3">Category</th>
               <th className="text-left p-3">Price</th>
               <th className="text-left p-3">Stock</th>
               <th className="text-left p-3">Status</th>

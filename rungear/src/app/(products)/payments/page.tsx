@@ -273,13 +273,24 @@ export default function PaymentsPage() {
                   <button
                     disabled={isEmpty}
                     className="mt-7 w-full rounded-xl bg-blue-700 text-white py-4 text-base font-semibold shadow-lg hover:bg-blue-800 transition disabled:opacity-50"
-                    onClick={() => {
-                      // TODO: gọi API /payments/checkout
-                      alert(
-                        "Thanh toán demo: " +
-                          formatPriceVND(total) +
-                          (note ? `\nGhi chú: ${note}` : "")
-                      );
+                    onClick={async () => {
+                      const orderCode = Date.now(); // mã đơn tạm
+                      const res = await fetch("/api/payments/create", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          orderCode,
+                          amount: total,
+                          description: "Thanh toán đơn hàng #" + orderCode,
+                        }),
+                      });
+                      const data = await res.json();
+
+                      if (data?.data?.checkoutUrl) {
+                        window.location.href = data.data.checkoutUrl; // redirect sang trang thanh toán PayOS
+                      } else {
+                        alert("Tạo thanh toán thất bại!");
+                      }
                     }}
                   >
                     Đặt hàng
