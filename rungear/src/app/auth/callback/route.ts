@@ -6,10 +6,10 @@ async function handle(request: Request) {
   const url = new URL(request.url);
   const searchParams = url.searchParams;
 
-  // Lấy code từ URL (GET)
+  // 1) Lấy code qua GET (chủ yếu)
   let code = searchParams.get("code");
 
-  // Một số flow có thể POST về (ít gặp), dự phòng parse từ body
+  // 2) Dự phòng khi nhà cung cấp POST về
   if (!code && request.method === "POST") {
     const ct = request.headers.get("content-type") || "";
     if (ct.includes("application/x-www-form-urlencoded")) {
@@ -39,14 +39,16 @@ async function handle(request: Request) {
   );
 
   if (code) {
+    // ĐỔI CODE -> SESSION + set cookie auth
     await supabase.auth.exchangeCodeForSession(code);
   }
 
+  // Redirect về trang đích
   return NextResponse.redirect(new URL(next, request.url));
 }
 
 export async function GET(request: Request) { return handle(request); }
 export async function POST(request: Request) { return handle(request); }
 
-// Tránh cache cho route callback
+// Không cache để tránh lỗi state
 export const dynamic = "force-dynamic";
