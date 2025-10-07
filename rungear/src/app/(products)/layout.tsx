@@ -28,87 +28,176 @@ export default async function ProductsGroupLayout({
 
   return (
     <div className="min-h-dvh flex flex-col bg-white">
-      {/* <GlobalLoading /> */}
-      <header className="sticky top-4 z-50 mx-4 md:mx-6 bg-white/90 backdrop-blur border rounded-2xl shadow-lg transition-all">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="h-24 flex flex-row items-center gap-8">
-            {/* Brand */}
+      {/* HEADER */}
+      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm shadow-sm">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="h-20 flex items-center justify-between">
+            {/* Logo */}
             <Link
               href="/home"
-              className="leading-tight shrink-0 px-3 py-2 rounded-xl hover:bg-gray-100 transition group"
+              className="flex flex-col leading-tight px-3 py-2 rounded-xl hover:bg-gray-100 transition group"
             >
-              <div className="text-4xl font-extrabold text-gray-900 tracking-tight group-hover:text-blue-700 transition">
-                Run Gear
-              </div>
-              <div className="text-xs text-gray-500 group-hover:text-blue-500 transition">
+              <span className="text-3xl font-extrabold text-gray-900 group-hover:text-blue-700 transition">
+                RunGear
+              </span>
+              <span className="text-xs text-gray-500 group-hover:text-blue-500 transition">
                 Phong cách & cá tính
-              </div>
+              </span>
             </Link>
 
-            {/* Center nav */}
-            <nav className="hidden md:flex md:flex-row flex-1 justify-center items-center gap-4 text-[15px] text-gray-700 font-medium">
-              <Link
-                href="/home"
-                className="px-4 py-2 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition"
-              >
-                Cửa hàng
-              </Link>
-              <Link
-                href="/about"
-                className="px-4 py-2 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition"
-              >
-                Giới thiệu
-              </Link>
-              <Link
-                href="/faq"
-                className="px-4 py-2 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition"
-              >
-                Hỏi đáp
-              </Link>
-              <Link
-                href="/contact"
-                className="px-4 py-2 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition"
-              >
-                Liên hệ
-              </Link>
-            </nav>
+            {/* Right group */}
+            <div className="flex items-center justify-center gap-10 text-sm font-medium text-gray-700">
+              {/* USER DROPDOWN */}
+              <div className="relative">
+                <input type="checkbox" id="user-toggle" className="peer hidden" />
 
-            {/* Right */}
-            <div className="flex flex-row items-center gap-3 shrink-0">
-              <AdminDropdown isAdmin={isAdmin} />
-
-
-              {/* Auth */}
-              {user ? (
-                <SignOutButton />
-              ) : (
-                <Link
-                  href="/auth/signin"
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition shadow"
+                <label
+                  htmlFor="user-toggle"
+                  className="flex flex-col items-center cursor-pointer hover:text-blue-600 transition select-none"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    className="w-5 h-5"
-                    viewBox="0 0 24 24"
+                    className="w-6 h-6"
                     fill="none"
+                    viewBox="0 0 24 24"
                     stroke="currentColor"
                     strokeWidth="2"
                   >
                     <path d="M20 21a8 8 0 0 0-16 0" />
                     <circle cx="12" cy="7" r="4" />
                   </svg>
-                  <span className="hidden sm:inline">Đăng nhập</span>
-                </Link>
-              )}
+                  <span className="mt-1">Tài khoản</span>
+                </label>
 
-              <CartButton />
+                {/* Dropdown */}
+                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-3 hidden peer-checked:flex flex-col bg-white border border-gray-200 rounded-xl shadow-xl w-60 py-2 z-50">
+                  {user ? (
+                    <>
+                      {!isAdmin && (
+                        <Link
+                          href="/profile"
+                          className="px-4 py-2 text-sm hover:bg-blue-50 rounded-t-xl transition"
+                        >
+                          Hồ sơ của tôi
+                        </Link>
+                      )}
+
+                      {/* ADMIN */}
+                      {isAdmin && (
+                        <div className="border-t border-gray-100 mt-1 pt-2 px-4 pb-1">
+                          <div className="flex flex-col gap-1 text-sm">
+                            <Link
+                              href="/admin/dashboard"
+                              className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-blue-50"
+                            >
+                              Dashboard
+                            </Link>
+                            <Link
+                              href="/admin/products"
+                              className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-blue-50"
+                            >
+                              Manage Products
+                            </Link>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* HIDDEN "Đơn hàng của tôi" IF ADMIN */}
+                      {!isAdmin && (
+                        <Link
+                          href="/orders"
+                          className="px-4 py-2 text-sm hover:bg-blue-50 transition"
+                        >
+                          Đơn hàng của tôi
+                        </Link>
+                      )}
+
+                      <div>
+                        <div className="px-4 py-2 flex items-center gap-2 hover:bg-blue-50 rounded-b-xl transition">
+                          <SignOutButton />
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <Link
+                      href="/auth/signin"
+                      className="block px-4 py-2 text-sm hover:bg-blue-50 transition"
+                    >
+                      Đăng nhập
+                    </Link>
+                  )}
+                </div>
+
+                {/* Click outside to close */}
+                <label
+                  htmlFor="user-toggle"
+                  className="fixed inset-0 hidden peer-checked:block z-40"
+                ></label>
+              </div>
+
+              {/* SUPPORT DROPDOWN */}
+              <div className="relative">
+                <input type="checkbox" id="support-toggle" className="peer hidden" />
+                <label
+                  htmlFor="support-toggle"
+                  className="flex flex-col items-center cursor-pointer hover:text-blue-600 transition select-none"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-6 h-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M9 12h6m2 4H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2z" />
+                  </svg>
+                  <span className="mt-1">Hỗ trợ</span>
+                </label>
+
+                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-3 hidden peer-checked:flex flex-col bg-white border border-gray-200 rounded-xl shadow-xl w-60 py-2 z-50">
+                  <Link
+                    href="/orders/track"
+                    className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-blue-50"
+                  >
+                    <span>🎯</span> Theo dõi đơn hàng
+                  </Link>
+                  <Link
+                    href="/support/returns"
+                    className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-blue-50"
+                  >
+                    <span>🔁</span> Đổi trả & Bảo hành
+                  </Link>
+                  <Link
+                    href="/contact"
+                    className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-blue-50"
+                  >
+                    <span>💬</span> Liên hệ CSKH
+                  </Link>
+                </div>
+
+                <label
+                  htmlFor="support-toggle"
+                  className="fixed inset-0 hidden peer-checked:block z-40"
+                ></label>
+              </div>
+
+              {/* CART */}
+              <div className="flex flex-col items-center hover:text-blue-600 transition">
+                <div className="w-6 h-6 flex items-center justify-center">
+                  <CartButton />
+                </div>
+                <span className="mt-1 select-none">Giỏ hàng</span>
+              </div>
             </div>
           </div>
         </div>
       </header>
 
+      {/* BODY */}
       <main className="flex-1">{children}</main>
-      {/* <CartDrawer /> */}
+
+      {/* FOOTER */}
       <Footer />
     </div>
   );
