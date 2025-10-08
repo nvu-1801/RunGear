@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import {
   Mail,
   ArrowUp,
@@ -13,10 +14,10 @@ import {
   Clock,
   Globe,
   CreditCard,
-  Apple
+  Shirt,
 } from "lucide-react";
 
-export default function Footer({ brand = "Shop" }: { brand?: string }) {
+export default function Footer({ brand = "RunGear" }: { brand?: string }) {
   const [email, setEmail] = React.useState("");
   const [message, setMessage] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -36,11 +37,11 @@ export default function Footer({ brand = "Shop" }: { brand?: string }) {
       return;
     }
     try {
-      // OPTIONAL: hook to your API route if you have one
+      // TODO: Gọi API của bạn nếu cần
       // await fetch("/api/newsletter/subscribe", { method: "POST", body: JSON.stringify({ email }) });
-      setMessage("Đăng ký nhận tin thành công ✨");
+      setMessage("Đăng ký nhận ưu đãi & xu hướng mới thành công ✨");
       setEmail("");
-    } catch (err) {
+    } catch {
       setError("Có lỗi xảy ra. Vui lòng thử lại.");
     }
   }
@@ -55,44 +56,48 @@ export default function Footer({ brand = "Shop" }: { brand?: string }) {
     {
       title: "Shop",
       links: [
-        { label: "Sản phẩm mới", href: "/new" },
-        { label: "Bán chạy", href: "/trending" },
-        { label: "Khuyến mãi", href: "/sale" },
-        { label: "Bộ sưu tập", href: "/collections" }
-      ]
+        { label: "New Arrivals", href: "/new" },
+        { label: "Best Sellers", href: "/trending" },
+        { label: "Sale", href: "/sale" },
+        { label: "Nam", href: "/men" },
+        { label: "Nữ", href: "/women" },
+        { label: "Trẻ em", href: "/kids" },
+      ],
     },
     {
-      title: "Learn",
+      title: "Discover",
       links: [
-        { label: "Công thức", href: "/recipes" },
-        { label: "Blog nấu ăn", href: "/blog" },
-        { label: "Video hướng dẫn", href: "/videos" },
-        { label: "FAQ", href: "/faq" }
-      ]
+        { label: "Lookbook", href: "/lookbook" },
+        { label: "Style Guide", href: "/style-guide" },
+        { label: "Size Guide", href: "/size-guide" },
+        { label: "Fabric Care", href: "/care" },
+        { label: "Blog thời trang", href: "/blog" },
+      ],
+    },
+    {
+      title: "Support",
+      links: [
+        { label: "Vận chuyển & Thanh toán", href: "/shipping-payment" },
+        { label: "Theo dõi đơn hàng", href: "/orders/track" },
+        { label: "Đổi trả & Hoàn tiền", href: "/refund" },
+        { label: "Bảo hành", href: "/warranty" },
+        { label: "FAQ", href: "/faq" },
+      ],
     },
     {
       title: "Company",
       links: [
         { label: "Về chúng tôi", href: "/about" },
+        { label: "Hệ thống cửa hàng", href: "/stores" },
         { label: "Tuyển dụng", href: "/careers" },
-        { label: "Đối tác", href: "/partners" },
-        { label: "Liên hệ", href: "/contact" }
-      ]
+        { label: "Liên hệ", href: "/contact" },
+      ],
     },
-    {
-      title: "Support",
-      links: [
-        { label: "Trung tâm hỗ trợ", href: "/support" },
-        { label: "Theo dõi đơn hàng", href: "/orders/track" },
-        { label: "Chính sách đổi trả", href: "/refund" },
-        { label: "Bảo hành", href: "/warranty" }
-      ]
-    }
   ];
 
   return (
     <footer className="mt-16 border-t bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:bg-neutral-950/80 dark:border-neutral-800">
-      {/* Gradient accent line */}
+      {/* Accent line */}
       <div className="h-[3px] w-full bg-gradient-to-r from-indigo-500 via-fuchsia-500 to-emerald-500" />
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -101,16 +106,22 @@ export default function Footer({ brand = "Shop" }: { brand?: string }) {
           <div className="md:col-span-1">
             <div className="flex items-center gap-2">
               <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-emerald-500 text-white shadow">
-                <Apple className="h-5 w-5" />
+                <Shirt className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">{brand}</h3>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">Nấu ăn dễ dàng, mỗi ngày ngon hơn.</p>
+                <h3 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+                  {brand}
+                </h3>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                  Thời trang mỗi ngày – mặc đẹp, tự tin hơn.
+                </p>
               </div>
             </div>
 
             <form onSubmit={onSubscribe} className="mt-6 space-y-3">
-              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Nhận tin khuyến mãi & công thức</label>
+              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                Nhận ưu đãi & xu hướng mới
+              </label>
               <div className="flex overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm ring-1 ring-transparent focus-within:ring-indigo-400 dark:border-neutral-800 dark:bg-neutral-900">
                 <div className="grid place-items-center px-3 text-neutral-500">
                   <Mail className="h-4 w-4" />
@@ -121,6 +132,7 @@ export default function Footer({ brand = "Shop" }: { brand?: string }) {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@mail.com"
                   className="w-full bg-transparent px-3 py-2 outline-none placeholder:text-neutral-400"
+                  aria-label="Email"
                 />
                 <button
                   type="submit"
@@ -135,23 +147,56 @@ export default function Footer({ brand = "Shop" }: { brand?: string }) {
 
             {/* Socials */}
             <div className="mt-6 flex items-center gap-3 text-neutral-600 dark:text-neutral-400">
-              <a href="#" aria-label="Facebook" className="rounded-full border p-2 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900"><Facebook className="h-4 w-4"/></a>
-              <a href="#" aria-label="Instagram" className="rounded-full border p-2 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900"><Instagram className="h-4 w-4"/></a>
-              <a href="#" aria-label="Twitter" className="rounded-full border p-2 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900"><Twitter className="h-4 w-4"/></a>
-              <a href="#" aria-label="YouTube" className="rounded-full border p-2 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900"><Youtube className="h-4 w-4"/></a>
+              <a
+                href="#"
+                aria-label="Facebook"
+                className="rounded-full border p-2 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900"
+                rel="noopener"
+              >
+                <Facebook className="h-4 w-4" />
+              </a>
+              <a
+                href="#"
+                aria-label="Instagram"
+                className="rounded-full border p-2 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900"
+                rel="noopener"
+              >
+                <Instagram className="h-4 w-4" />
+              </a>
+              <a
+                href="#"
+                aria-label="Twitter"
+                className="rounded-full border p-2 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900"
+                rel="noopener"
+              >
+                <Twitter className="h-4 w-4" />
+              </a>
+              <a
+                href="#"
+                aria-label="YouTube"
+                className="rounded-full border p-2 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900"
+                rel="noopener"
+              >
+                <Youtube className="h-4 w-4" />
+              </a>
             </div>
           </div>
 
           {/* Link sections */}
           {sections.map((sec) => (
             <nav key={sec.title} aria-label={sec.title} className="md:col-span-1">
-              <h4 className="text-sm font-semibold uppercase tracking-wide text-neutral-700 dark:text-neutral-300">{sec.title}</h4>
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-neutral-700 dark:text-neutral-300">
+                {sec.title}
+              </h4>
               <ul className="mt-4 space-y-2">
                 {sec.links.map((l) => (
                   <li key={l.href}>
-                    <a href={l.href} className="text-neutral-600 transition hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100">
+                    <Link
+                      href={l.href}
+                      className="text-neutral-600 transition hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
+                    >
                       {l.label}
-                    </a>
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -162,24 +207,30 @@ export default function Footer({ brand = "Shop" }: { brand?: string }) {
         {/* Info strip */}
         <div className="grid grid-cols-1 gap-6 rounded-2xl border bg-white/60 p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/60 md:grid-cols-3">
           <div className="flex items-start gap-3">
-            <MapPin className="mt-0.5 h-5 w-5 text-neutral-500"/>
+            <MapPin className="mt-0.5 h-5 w-5 text-neutral-500" />
             <div>
               <div className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">Cửa hàng</div>
-              <div className="text-sm text-neutral-600 dark:text-neutral-400">123 Đường ABC, Quận 1, TP.HCM</div>
+              <div className="text-sm text-neutral-600 dark:text-neutral-400">
+                123 Nguyễn Trãi, Quận 1, TP.HCM
+              </div>
             </div>
           </div>
           <div className="flex items-start gap-3">
-            <Phone className="mt-0.5 h-5 w-5 text-neutral-500"/>
+            <Phone className="mt-0.5 h-5 w-5 text-neutral-500" />
             <div>
               <div className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">Hỗ trợ</div>
-              <div className="text-sm text-neutral-600 dark:text-neutral-400">(+84) 900 000 000 · hello@{brand.toLowerCase()}.com</div>
+              <div className="text-sm text-neutral-600 dark:text-neutral-400">
+                (+84) 900 000 000 · hello@{brand.toLowerCase()}.com
+              </div>
             </div>
           </div>
           <div className="flex items-start gap-3">
-            <Clock className="mt-0.5 h-5 w-5 text-neutral-500"/>
+            <Clock className="mt-0.5 h-5 w-5 text-neutral-500" />
             <div>
               <div className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">Giờ làm việc</div>
-              <div className="text-sm text-neutral-600 dark:text-neutral-400">T2–T6 9:00–18:00 · T7 9:00–12:00</div>
+              <div className="text-sm text-neutral-600 dark:text-neutral-400">
+                T2–T6 9:00–18:00 · T7 9:00–12:00
+              </div>
             </div>
           </div>
         </div>
@@ -188,15 +239,15 @@ export default function Footer({ brand = "Shop" }: { brand?: string }) {
         <div className="mt-6 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-              <Globe className="h-4 w-4 text-neutral-500"/>
-              <select className="bg-transparent outline-none">
+              <Globe className="h-4 w-4 text-neutral-500" />
+              <select className="bg-transparent outline-none" aria-label="Ngôn ngữ">
                 <option>Tiếng Việt</option>
                 <option>English</option>
               </select>
             </div>
             <div className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-              <CreditCard className="h-4 w-4 text-neutral-500"/>
-              <select className="bg-transparent outline-none">
+              <CreditCard className="h-4 w-4 text-neutral-500" />
+              <select className="bg-transparent outline-none" aria-label="Tiền tệ">
                 <option>VND (₫)</option>
                 <option>USD ($)</option>
               </select>
@@ -207,8 +258,10 @@ export default function Footer({ brand = "Shop" }: { brand?: string }) {
             <span className="rounded-md border px-2 py-1 dark:border-neutral-700">VISA</span>
             <span className="rounded-md border px-2 py-1 dark:border-neutral-700">Mastercard</span>
             <span className="rounded-md border px-2 py-1 dark:border-neutral-700">JCB</span>
+            <span className="rounded-md border px-2 py-1 dark:border-neutral-700">VNPay</span>
             <span className="rounded-md border px-2 py-1 dark:border-neutral-700">Momo</span>
             <span className="rounded-md border px-2 py-1 dark:border-neutral-700">ZaloPay</span>
+            <span className="rounded-md border px-2 py-1 dark:border-neutral-700">COD</span>
           </div>
         </div>
 
@@ -216,10 +269,13 @@ export default function Footer({ brand = "Shop" }: { brand?: string }) {
         <div className="mt-8 flex flex-col items-start justify-between gap-4 border-t py-6 text-sm text-neutral-600 dark:border-neutral-800 dark:text-neutral-400 md:flex-row md:items-center">
           <p>© {year} {brand}. All rights reserved.</p>
           <div className="flex flex-wrap items-center gap-4">
-            <a href="/privacy" className="hover:text-neutral-900 dark:hover:text-neutral-100">Privacy</a>
-            <a href="/terms" className="hover:text-neutral-900 dark:hover:text-neutral-100">Terms</a>
-            <a href="/cookies" className="hover:text-neutral-900 dark:hover:text-neutral-100">Cookies</a>
-            <button onClick={scrollToTop} className="inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-900">
+            <Link href="/privacy" className="hover:text-neutral-900 dark:hover:text-neutral-100">Privacy</Link>
+            <Link href="/terms" className="hover:text-neutral-900 dark:hover:text-neutral-100">Terms</Link>
+            <Link href="/cookies" className="hover:text-neutral-900 dark:hover:text-neutral-100">Cookies</Link>
+            <button
+              onClick={scrollToTop}
+              className="inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-900"
+            >
               <ArrowUp className="h-4 w-4" /> Lên đầu trang
             </button>
           </div>
