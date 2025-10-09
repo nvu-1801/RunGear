@@ -6,9 +6,9 @@ type ProductInput = {
   name: string;
   price: number;
   stock: number;
-  imageUrl?: string | null;
+  images?: string | null;
   status: "draft" | "active" | "hidden";
-  categories_idId?: "1d4478e7-c9d2-445e-8520-14dae73aac68" | "3c0144cf-7a2e-4c59-8ad7-351a27d2fc1d" | "e9819e30-a5dc-4cd1-835d-206bb882fc09";
+  categories_id: "1d4478e7-c9d2-445e-8520-14dae73aac68" | "3c0144cf-7a2e-4c59-8ad7-351a27d2fc1d" | "e9819e30-a5dc-4cd1-835d-206bb882fc09";
 };
 
 type Product = ProductInput & { id: string };
@@ -20,14 +20,18 @@ type Props = {
 };
 
 export default function ProductForm({ initial, onClose, onSaved }: Props) {
+  type FormState = Omit<ProductInput, "price" | "stock"> & {
+  price: number | "";
+  stock: number | "";
+};
   const isEdit = !!initial;
-  const [form, setForm] = useState<ProductInput>({
+  const [form, setForm] = useState<FormState>({
     name: "",
-    price: 0,
-    stock: 0,
-    imageUrl: "",
+    price: "",
+    stock: "",
+    images: "",
     status: "active",
-    categories_idId: "1d4478e7-c9d2-445e-8520-14dae73aac68",
+    categories_id: "1d4478e7-c9d2-445e-8520-14dae73aac68",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,22 +39,33 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
   useEffect(() => {
     if (initial) {
       const { id, ...rest } = initial;
-      setForm({ ...rest });
-    }
+      setForm((prev) => ({
+      ...prev,
+      ...rest,
+      price: rest.price ?? "",
+      stock: rest.stock ?? "",
+      categories_id: rest.categories_id ?? prev.categories_id,
+    }));
+  }
   }, [initial]);
 
   const submit = async () => {
     setSaving(true);
     setError(null);
-    const endpoint = isEdit
-      ? `/api/products/${(initial as Product).id}`
-      : "/api/products";
+    // Ensure price and stock are numbers before sending
+    const payload: ProductInput = {
+    ...form,
+    price: form.price === "" ? 0 : form.price,
+    stock: form.stock === "" ? 0 : form.stock,
+  };
+
+    const endpoint = isEdit ? `/api/products/${(initial as Product).id}` : "/api/products";
     const method = isEdit ? "PUT" : "POST";
     console.log("Submitting form:", form);
     const r = await fetch(endpoint, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify(payload),
     });
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
@@ -90,8 +105,8 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
           <div className="space-y-1">
             <label className="text-sm text-gray-600">Category</label>
             <select
-              value={form.categories_idId}
-              onChange={(e) => setForm({ ...form, categories_idId: e.target.value as ProductInput["categories_idId"] })}
+              value={form.categories_id}
+              onChange={(e) => setForm({ ...form, categories_id: e.target.value as ProductInput["categories_id"] })}
               className="border px-3 py-2 rounded-md w-full"
             >
               <option value="e9819e30-a5dc-4cd1-835d-206bb882fc09">quần</option>
@@ -104,9 +119,12 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
             <label className="text-sm text-gray-600">Price (VND)</label>
             <input
               type="number"
-              value={form.price}
+              value={form.price === "" ? "" : String(form.price)}
               onChange={(e) =>
-                setForm({ ...form, price: Number(e.target.value) })
+                setForm((f) => ({
+                  ...f,
+                  price: e.target.value === "" ? "" : Number(e.target.value),
+              }))
               }
               className="border px-3 py-2 rounded-md w-full"
             />
@@ -115,9 +133,12 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
             <label className="text-sm text-gray-600">Stock</label>
             <input
               type="number"
-              value={form.stock}
+              value={form.stock === "" ? "" : String(form.stock)}
               onChange={(e) =>
-                setForm({ ...form, stock: Number(e.target.value) })
+                setForm((f) => ({
+                  ...f,
+                  stock: e.target.value === "" ? "" : Number(e.target.value),
+                }))
               }
               className="border px-3 py-2 rounded-md w-full"
             />
@@ -126,8 +147,8 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
           <div className="space-y-1">
             <label className="text-sm text-gray-600">Image URL</label>
             <input
-              value={form.imageUrl ?? ""}
-              onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+              value={form.images ?? ""}
+              onChange={(e) => setForm({ ...form, images: e.target.value })}
               className="border px-3 py-2 rounded-md w-full"
               placeholder="https://..."
             />
@@ -138,13 +159,13 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
             <select
               value={form.status}
               onChange={(e) =>
-                setForm({ ...form, status: e.target.value as any })
+                setForm({ ...form, status: e.target.value as FormState["status"] })
               }
               className="border px-3 py-2 rounded-md w-full"
             >
-              <option value="DRAFT">draft</option>
-              <option value="ACTIVE">active</option>
-              <option value="HIDDEN">hidden</option>
+              <option value="draft">draft</option>
+              <option value="active">active</option>
+              <option value="hidden">hidden</option>
             </select>
           </div>
 
