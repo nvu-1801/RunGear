@@ -4,6 +4,8 @@ export type Product = {
   slug: string;
   name: string;
   price: number;
+  stock: number;
+  status: "draft" | "active" | "hidden";
   description: string | null;
   images?: string[] | string | null;
   categories_id?: string | null;

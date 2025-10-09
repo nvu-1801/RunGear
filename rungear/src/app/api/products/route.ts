@@ -4,6 +4,13 @@ import { listProducts } from "@/modules/products/controller/product.service"; //
 import { supabaseServer } from "@/libs/db/supabase/supabase-server";
 // API GET: Lấy danh sách sản phẩm
 export async function GET(req: Request) {
+  console.log("📍 Full URL:", req.url);
+  
+  // ✅ Log method
+  console.log("🔧 Method:", req.method);
+  
+  // ✅ Log headers
+  console.log("📋 Headers:", Object.fromEntries(req.headers));
   try {
     const { searchParams } = new URL(req.url);
     const q = searchParams.get("q") || "";
@@ -23,6 +30,8 @@ export async function GET(req: Request) {
 }
 // API POST: Tạo sản phẩm mới
 export async function POST(req: Request) {
+
+
   try {
     const body = await req.json();
     const {
@@ -61,6 +70,51 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json(data, { status: 201 });
+  } catch (err: any) {
+    return NextResponse.json({ message: err?.message || "Server error" }, { status: 500 });
+  }
+}
+// API PUT: Cập nhật sản phẩm theo ID
+export async function PUT(req: Request, { params }: { params: { id: string } }) {
+  try {
+    const body = await req.json();
+
+    const {
+      id,
+      name,
+      price,
+      stock,
+      imageUrl = null,
+      status = "draft",
+      categories_id,
+    } = body;
+
+  
+    
+
+    const payload: Record<string, any> = {
+      name,
+      price: price,
+      stock: stock,
+      status,
+      categories_id,
+    };
+    // nếu có imageUrl thì map vào cột images (hoặc tên cột bạn dùng)
+    if (imageUrl !== null) payload.images = imageUrl;
+
+    const supabase = await supabaseServer();
+    const { data, error } = await supabase
+      .from("products")
+      .update(payload)
+      .eq("id", body.id) // Giả sử body có trường 'id' để xác định sản phẩm cần cập nhật
+      .select()
+      .single();
+
+    if (error) {
+      return NextResponse.json({ message: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(data, { status: 200 });
   } catch (err: any) {
     return NextResponse.json({ message: err?.message || "Server error" }, { status: 500 });
   }

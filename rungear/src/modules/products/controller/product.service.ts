@@ -63,7 +63,7 @@ export async function listProducts({
 
   let qy = sb
     .from("products")
-    .select("id,name,slug,price,description,images,created_at,categories_id")
+    .select("id,name,slug,price,stock,description,images,created_at,categories_id,status")
     .order("created_at", { ascending: false });
 
   if (q) qy = qy.ilike("name", `%${q}%`);
@@ -71,12 +71,15 @@ export async function listProducts({
 
   const { data, error } = await qy;
   if (error) throw error;
+  console.log("📦 Raw data from Supabase:", data?.[0]);
 
   return (data ?? []).map((r: any) => ({
     id: r.id,
     name: r.name,
     slug: r.slug,
     price: r.price,
+    status: r.status,
+    stock: r.stock, 
     description: r.description,
     images: normalizeImages(r.images),
     categories_id: r.categories_id,
