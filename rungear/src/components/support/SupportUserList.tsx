@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { supabaseBrowser } from "../../../../libs/db/supabase/supabase-client";
+import { supabaseBrowser } from "../../libs/db/supabase/supabase-client";
 
 type Props = {
   sessions: { session_id: string; user_id: string | null }[];
@@ -21,12 +21,17 @@ const COLORS = [
 
 function pickGradient(key: string) {
   let hash = 0;
-  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0;
+  for (let i = 0; i < key.length; i++)
+    hash = (hash * 31 + key.charCodeAt(i)) | 0;
   const idx = Math.abs(hash) % COLORS.length;
   return COLORS[idx];
 }
 
-export default function SupportUserList({ sessions, selectedSession, onSelect }: Props) {
+export default function SupportUserList({
+  sessions,
+  selectedSession,
+  onSelect,
+}: Props) {
   const sb = supabaseBrowser();
   const [users, setUsers] = useState<Record<string, UserLite | null>>({});
   const [q, setQ] = useState("");
@@ -34,12 +39,15 @@ export default function SupportUserList({ sessions, selectedSession, onSelect }:
   // Lấy email của từng user_id (nếu có)
   useEffect(() => {
     async function load() {
-      const ids = sessions.map(s => s.user_id).filter(Boolean) as string[];
+      const ids = sessions.map((s) => s.user_id).filter(Boolean) as string[];
       if (ids.length === 0) return;
-      const { data } = await sb.from("profiles").select("id, email").in("id", ids);
+      const { data } = await sb
+        .from("profiles")
+        .select("id, email")
+        .in("id", ids);
       if (data) {
         const map: Record<string, any> = {};
-        data.forEach(u => (map[u.id] = u));
+        data.forEach((u) => (map[u.id] = u));
         setUsers(map);
       }
     }
@@ -49,7 +57,7 @@ export default function SupportUserList({ sessions, selectedSession, onSelect }:
   const filtered = useMemo(() => {
     const keyword = q.trim().toLowerCase();
     if (!keyword) return sessions;
-    return sessions.filter(s => {
+    return sessions.filter((s) => {
       const email = s.user_id ? users[s.user_id]?.email ?? "" : "";
       return (
         email.toLowerCase().includes(keyword) ||
@@ -63,7 +71,9 @@ export default function SupportUserList({ sessions, selectedSession, onSelect }:
       {/* Header */}
       <div className="p-4 border-b bg-white">
         <div className="font-semibold text-gray-800 flex items-center gap-2">
-          <span className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white grid place-items-center">👥</span>
+          <span className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white grid place-items-center">
+            👥
+          </span>
           Danh sách khách hàng
         </div>
         <div className="mt-3 relative">
@@ -74,15 +84,18 @@ export default function SupportUserList({ sessions, selectedSession, onSelect }:
             className="w-full h-10 rounded-xl border border-gray-300 pl-10 pr-3 text-sm
                        focus:ring-2 focus:ring-indigo-400/60"
           />
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔎</span>
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+            🔎
+          </span>
         </div>
       </div>
 
       {/* List */}
       <ul className="flex-1 overflow-y-auto divide-y divide-gray-100 bg-gradient-to-b from-gray-50/60 to-white">
         {filtered.map((s) => {
-          const email =
-            s.user_id ? users[s.user_id]?.email : `Khách vãng lai (${s.session_id.slice(0, 6)}…)`;
+          const email = s.user_id
+            ? users[s.user_id]?.email
+            : `Khách vãng lai (${s.session_id.slice(0, 6)}…)`;
           const active = selectedSession === s.session_id;
           const grad = pickGradient(s.session_id);
           const initials = (email || "G").slice(0, 1).toUpperCase();
@@ -96,8 +109,10 @@ export default function SupportUserList({ sessions, selectedSession, onSelect }:
             >
               <div className="flex items-center gap-3">
                 {/* Avatar */}
-                <div className={`h-10 w-10 rounded-xl text-white grid place-items-center
-                                 bg-gradient-to-br ${grad} shadow-sm`}>
+                <div
+                  className={`h-10 w-10 rounded-xl text-white grid place-items-center
+                                 bg-gradient-to-br ${grad} shadow-sm`}
+                >
                   <span className="text-sm font-bold">{initials}</span>
                 </div>
 
@@ -109,7 +124,11 @@ export default function SupportUserList({ sessions, selectedSession, onSelect }:
                     </div>
                     <span
                       className={`text-[10px] px-2 py-0.5 rounded-full
-                                  ${active ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"}`}
+                                  ${
+                                    active
+                                      ? "bg-indigo-600 text-white"
+                                      : "bg-gray-100 text-gray-600"
+                                  }`}
                     >
                       {s.user_id ? "Đã đăng nhập" : "Guest"}
                     </span>
@@ -120,18 +139,24 @@ export default function SupportUserList({ sessions, selectedSession, onSelect }:
                 </div>
 
                 {/* Chevron */}
-                <div className="opacity-0 group-hover:opacity-100 transition text-gray-400">›</div>
+                <div className="opacity-0 group-hover:opacity-100 transition text-gray-400">
+                  ›
+                </div>
               </div>
             </li>
           );
         })}
 
         {filtered.length === 0 && (
-          <li className="p-6 text-gray-400 text-sm italic">Không tìm thấy khách hàng phù hợp…</li>
+          <li className="p-6 text-gray-400 text-sm italic">
+            Không tìm thấy khách hàng phù hợp…
+          </li>
         )}
 
         {sessions.length === 0 && (
-          <li className="p-6 text-gray-400 text-sm italic">Chưa có khách hàng nào chat</li>
+          <li className="p-6 text-gray-400 text-sm italic">
+            Chưa có khách hàng nào chat
+          </li>
         )}
       </ul>
     </div>
