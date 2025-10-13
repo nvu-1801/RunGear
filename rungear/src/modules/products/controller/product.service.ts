@@ -64,7 +64,8 @@ export async function listProducts({
   let qy = sb
     .from("products")
     .select("id,name,slug,price,stock,description,images,created_at,categories_id,status")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .eq("is_deleted", false); // lọc soft-deleted
 
   if (q) qy = qy.ilike("name", `%${q}%`);
   if (catId) qy = qy.eq("categories_id", catId);

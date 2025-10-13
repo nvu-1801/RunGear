@@ -113,7 +113,8 @@ export default function ProductManager({
   };
   const onDelete = async (id: string) => {
     if (!confirm("Delete this product?")) return;
-    await fetch(`/api/admin/products/${id}`, { method: "DELETE" });
+    await fetch(`/api/products/${id}`, { method: "DELETE" });
+    console.log("Deleted product with id:", id);
     fetchList();
   };
   const onSaved = () => {
