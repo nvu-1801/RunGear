@@ -1,80 +1,148 @@
 import "server-only";
 import { supabaseServer } from "@/libs/db/supabase/supabase-server";
-import  {
-  normalizeImages,
-  productImageUrl,
-  imagePathToUrl,
-  type Product,
-} from "../model/product-public";
+import { normalizeImages, type Product } from "../model/product-public";
+import {
+  getCategoryIdBySlug,
+  type CatKey,
+} from "@/modules/categories/category.service";
 
-type CatKey = "all" | "giay" | "quan-ao";
+/** Cho phép UI truyền 'all' ngoài 3 slug thực tế */
+type CatKeyAll = "all" | CatKey;
 
-const CAT_SLUGS: Record<Exclude<CatKey, "all">, string> = {
-  giay: "giay",
-  "quan-ao": "quan-ao",
-};
-
-// export async function listProducts({
-//   q = "",
-//   cat = "all",
-// }: { q?: string; cat?: CatKey } = {}) {
-//   const sb = await supabaseServer();
-
-//   // Nếu cần filter theo category.slug thì dùng INNER JOIN để filter hoạt động.
-//   const selectWhenFilter =
-//     "id,name,slug,price,description,images,category_id,categories:category_id!inner(slug,name)";
-//   const selectDefault =
-//     "id,name,slug,price,description,images,category_id,categories:category_id(slug,name)";
-
-//   const usingFilter = cat && cat !== "all";
-//   let query = sb
-//     .from("products")
-//     .select(usingFilter ? selectWhenFilter : selectDefault)
-//     .order("created_at", { ascending: false });
-
-//   if (q) query = query.ilike("name", `%${q}%`);
-//   if (usingFilter) {
-//     const slug = CAT_SLUGS[cat as Exclude<CatKey, "all">];
-//     query = query.eq("categories.slug", slug);
-//   }
-
-//   const { data, error } = await query;
-//   if (error) {
-//     console.error("[listProducts]", error);
-//     throw new Error(error.message);
-//   }
-//   // data có thể kèm trường nested "categories", nhưng Product không cần – cứ trả về mảng Product tối thiểu
-//   return (data ?? []) as Product[];
-// }
-
-export async function listProducts({ q, cat }: { q?: string; cat?: string }) {
+/** Tạo sản phẩm theo slug category chuẩn (ao|quan|giay) */
+export async function createProduct(cmd: {
+  name: string;
+  price: number;
+  slug: string;
+  description?: string;
+  images?: string[];
+  categorySlug: CatKey; // <- chỉ chấp nhận 'ao' | 'quan' | 'giay'
+}) {
   const sb = await supabaseServer();
-  let qy = sb.from("products").select("*").order("created_at", { ascending: false });
-  if (q) qy = qy.ilike("name", `%${q}%`);
-  if (cat && cat !== "all") qy = qy.eq("category_slug", cat);
-  const { data, error } = await qy;
-  if (error) throw error;
+  const catId = await getCategoryIdBySlug(sb, cmd.categorySlug);
+  if (!catId) throw new Error("INVALID_CATEGORY");
 
-  return (data ?? []).map((r: any) => ({
-    ...r,
-    images: normalizeImages(r.images), // chuẩn hoá thành mảng URL tuyệt đối
-  }));
+  const { data, error } = await sb
+    .from("products")
+    .insert({
+      name: cmd.name,
+      price: cmd.price,
+      slug: cmd.slug,
+      description: cmd.description ?? null,
+      images: cmd.images ?? [],
+      categories_id: catId,
+    })
+    .select("id, slug")
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
-export async function getProductBySlug(slug: string) {
+/** Liệt kê sản phẩm, có filter q + category (hỗ trợ 'all') */
+export async function listProducts({
+  q = "",
+  cat = "all",
+}: { q?: string; cat?: string } = {}) {
+  const sb = await supabaseServer();
+
+  // Normalize incoming category slugs (support "quan-ao" from UI -> "quan" in DB)
+  const slugMap: Record<string, CatKey> = {
+    giay: "giay",
+    "quan-ao": "quan",
+    quan: "quan",
+    ao: "ao",
+  };
+
+  const catSafe: "all" | CatKey = cat === "all" ? "all" : slugMap[cat] ?? "all";
+
+  // lấy id category theo slug khi cần
+  let catId: string | null = null;
+  if (catSafe !== "all") {
+    const { data: c, error: e1 } = await sb
+      .from("categories")
+      .select("id")
+      .eq("slug", catSafe) // slug: "ao" | "quan" | "giay"
+      .maybeSingle();
+
+    if (e1 && (e1 as { code?: unknown }).code !== "PGRST116") throw e1;
+    if (!c?.id) return []; // slug không tồn tại
+    catId = c.id;
+  }
+
+  let qy = sb
+    .from("products")
+    .select(
+      "id,name,slug,price,stock,description,images,created_at,categories_id,status"
+    )
+    .order("created_at", { ascending: false })
+    .eq("is_deleted", false); // lọc soft-deleted
+
+  if (q) qy = qy.ilike("name", `%${q}%`);
+  if (catId) qy = qy.eq("categories_id", catId);
+
+  const { data, error } = await qy;
+  if (error) throw error;
+  console.log("📦 Raw data from Supabase:", (data as unknown[])?.[0]);
+
+  return (data ?? []).map((r: unknown) => {
+    const row = r as Record<string, unknown>;
+    return {
+      id: String(row.id ?? ""),
+      name: typeof row.name === "string" ? row.name : String(row.name ?? ""),
+      slug: typeof row.slug === "string" ? row.slug : String(row.slug ?? ""),
+      price: Number(row.price ?? 0),
+      status: typeof row.status === "string" ? row.status : "draft",
+      stock: Number(row.stock ?? 0),
+      description: typeof row.description === "string" ? row.description : null,
+      images: normalizeImages(
+        row.images as unknown as string[] | string | null | undefined
+      ),
+      categories_id:
+        row.categories_id == null ? null : String(row.categories_id),
+    } as Product;
+  }) as Product[];
+}
+
+/** Lấy chi tiết theo ID (UUID) và merge ảnh từ cột + bảng con */
+export async function getProductById(id: string) {
   const sb = await supabaseServer();
   const { data, error } = await sb
     .from("products")
     .select("*, product_images(url, position)")
-    .eq("slug", slug)
+    .eq("id", id)
     .single();
-  if (error) throw error;
 
-  const fromCol = normalizeImages(data.images); // products.images có thể là text hoặc text[]
-  const fromChild = (data.product_images ?? [])
-    .sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0))
-    .map((x: any) => x.url)
-    .filter((u: string) => /^https?:\/\//i.test(u));
+  if (error) {
+    if ((error as { code?: unknown }).code === "PGRST116")
+      throw new Error("NOT_FOUND");
+    throw error;
+  }
 
-  return { ...data, images: [...fromCol, ...fromChild] };
+  const base = data as Record<string, unknown>;
+  const fromCol = normalizeImages(
+    base.images as unknown as string[] | string | null | undefined
+  );
+
+  const childArr = Array.isArray(base.product_images)
+    ? (base.product_images as unknown[])
+    : [];
+  const fromChild = childArr
+    .slice()
+    .sort((a: unknown, b: unknown) => {
+      const aa = a as Record<string, unknown>;
+      const bb = b as Record<string, unknown>;
+      return Number(aa.position ?? 0) - Number(bb.position ?? 0);
+    })
+    .map((x: unknown) => {
+      const xx = x as Record<string, unknown>;
+      const u = xx.url;
+      return typeof u === "string" ? u : String(u ?? "");
+    })
+    .filter((u: string) => typeof u === "string" && /^https?:\/\//i.test(u));
+
+  return {
+    ...base,
+    images: [...fromCol, ...fromChild],
+  } as Record<string, unknown>;
 }

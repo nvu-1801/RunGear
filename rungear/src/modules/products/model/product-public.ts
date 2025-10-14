@@ -4,9 +4,11 @@ export type Product = {
   slug: string;
   name: string;
   price: number;
+  stock: number;
+  status: "draft" | "active" | "hidden";
   description: string | null;
-  images?: string[] | string | null; // lưu URL tuyệt đối
-  category_id?: string | null;
+  images?: string[] | string | null;
+  categories_id?: string | null;
 };
 
 const isHttpUrl = (s?: string | null) => !!s && /^https?:\/\//i.test(s!.trim());
@@ -29,8 +31,6 @@ export function productImageUrl(p: { images?: string[] | string | null }) {
   return arr[0] ?? null;
 }
 
-// Không còn dùng “imagePathToUrl” để chắp domain nữa.
-// Nếu code cũ còn import, ta cho alias identity:
 export function imagePathToUrl(url: string) {
-  return url; // url đã là https://...
+  return url; 
 }

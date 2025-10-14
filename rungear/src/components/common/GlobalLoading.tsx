@@ -1,22 +1,40 @@
 "use client";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function GlobalLoading() {
   const pathname = usePathname();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const timeoutRef = useRef<number | null>(null);
+
+  const start = () => {
+    if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
+    setLoading(true);
+    timeoutRef.current = window.setTimeout(() => setLoading(false), 3000);
+  };
+
+  const done = () => {
+    if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
+    setLoading(false);
+  };
 
   useEffect(() => {
-    const start = () => setLoading(true);
-    const done = () => setLoading(false);
+    // use a properly typed EventListener and shared options
+    const listenerOpts: AddEventListenerOptions = { capture: true };
 
-    // 1) Bắt mọi click vào <a> nội bộ (Link cũng render thành <a>)
-    const onDocClick = (e: MouseEvent) => {
-      // bỏ qua nếu dùng Ctrl/Cmd/Shift/Alt, hoặc middle-click
-      if ((e as any).metaKey || e.ctrlKey || e.shiftKey || e.altKey || (e as any).button === 1) return;
+    const onDocClick = (e: Event) => {
+      const me = e as MouseEvent;
+      if (
+        me.metaKey ||
+        me.ctrlKey ||
+        me.shiftKey ||
+        me.altKey ||
+        me.button === 1
+      )
+        return;
 
-      const el = e.target as Element | null;
+      const el = (e.target as Element) ?? null;
       const a = el?.closest?.("a");
       if (!a) return;
 
@@ -24,36 +42,56 @@ export function GlobalLoading() {
       const target = a.getAttribute("target");
       if (!href || href.startsWith("#") || target === "_blank") return;
 
-      // chỉ bật khi là điều hướng nội bộ (same-origin)
       const url = new URL(href, window.location.href);
-      if (url.origin !== window.location.origin) return;
-
+      if (url.origin !== window.location.origin) return; // external
       start();
     };
 
-    document.addEventListener("click", onDocClick, { capture: true });
+    document.addEventListener("click", onDocClick, listenerOpts);
 
-    // 2) Patch router.push/replace cho các nơi bạn gọi bằng code
     const origPush = router.push;
-    router.push = ((...args: any) => {
+    router.push = ((...args: unknown[]) => {
       start();
-      return origPush.apply(router, args);
+      return origPush.apply(
+        router,
+        args as unknown as Parameters<typeof origPush>
+      );
     }) as typeof router.push;
 
     const origReplace = router.replace;
-    router.replace = ((...args: any) => {
+    router.replace = ((...args: unknown[]) => {
       start();
-      return origReplace.apply(router, args);
+      return origReplace.apply(
+        router,
+        args as unknown as Parameters<typeof origReplace>
+      );
     }) as typeof router.replace;
 
-    // 3) Khi pathname thay đổi => điều hướng đã xong
+    const onPopState = () => start();
+    window.addEventListener("popstate", onPopState);
+
+    const onVis = () => {
+      if (document.visibilityState === "visible") done();
+    };
+    document.addEventListener("visibilitychange", onVis);
+
     done();
 
     return () => {
-      document.removeEventListener("click", onDocClick, { capture: true } as any);
-      // không cần restore router.* vì component sống suốt vòng đời app
+      document.removeEventListener("click", onDocClick, listenerOpts);
+      window.removeEventListener("popstate", onPopState);
+      document.removeEventListener("visibilitychange", onVis);
+      if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
     };
-  }, [router, pathname]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (loading) {
+      const id = requestAnimationFrame(() => setLoading(false));
+      return () => cancelAnimationFrame(id);
+    }
+  }, [pathname]);
 
   if (!loading) return null;
 
