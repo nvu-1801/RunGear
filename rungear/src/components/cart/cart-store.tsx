@@ -39,13 +39,19 @@ const Ctx = createContext<CartState | null>(null);
 const LS_KEY = "rg_cart_v1";
 
 /** ----- Utils ----- */
-function supaMsg(e: any) {
-  const err = e?.error ?? e;
-  if (!err) return "unknown";
-  if (typeof err === "string") return err;
-  const parts = [err.code, err.message].filter(Boolean).join(" ");
-  const det = err.details ? ` — ${err.details}` : "";
-  return parts ? parts + det : JSON.stringify(err);
+function supaMsg(e: unknown) {
+  const maybeErr =
+    typeof e === "object" && e !== null && "error" in e
+      ? (e as { error?: unknown }).error
+      : e;
+  if (!maybeErr) return "unknown";
+  if (typeof maybeErr === "string") return maybeErr;
+  const code = (maybeErr as { code?: unknown }).code;
+  const message = (maybeErr as { message?: unknown }).message;
+  const details = (maybeErr as { details?: unknown }).details;
+  const parts = [code, message].filter(Boolean).join(" ");
+  const det = details ? ` — ${String(details)}` : "";
+  return parts ? parts + det : JSON.stringify(maybeErr);
 }
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
@@ -71,25 +77,35 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   async function loadFromServerReplaceLocal() {
     if (!CartAPI?.list) return;
     const rows = await CartAPI.list();
-    const mapped: CartItem[] = rows.map((r) => ({
-      id: r.product_id,
-      slug: r.slug,
-      name: r.name,
-      price: r.price_at_time,
-      image: r.image ?? undefined,
-      variant: null, // server chưa lưu variant
-      qty: r.qty,
-    }));
+    const mapped: CartItem[] = rows.map((r: unknown) => {
+      const row = r as {
+        product_id: string;
+        slug: string;
+        name: string;
+        price_at_time: number;
+        image?: string | null;
+        qty: number;
+      };
+      return {
+        id: row.product_id,
+        slug: row.slug,
+        name: row.name,
+        price: row.price_at_time,
+        image: row.image ?? undefined,
+        variant: null, // server chưa lưu variant
+        qty: row.qty,
+      };
+    });
     setItems(mapped);
   }
 
   /** helper: bắt lỗi server & không để reject rò rỉ */
-  async function tryServer(task: () => Promise<any>) {
+  async function tryServer(task: () => Promise<unknown>) {
     try {
       await task();
       await loadFromServerReplaceLocal(); // đồng bộ lại từ DB
       return true;
-    } catch (e) {
+    } catch (e: unknown) {
       console.error("cart/server failed:", supaMsg(e));
       return false;
     }
@@ -103,76 +119,80 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }
 
   /** ----- Auth state sync (merge guest -> server một lần) ----- */
- useEffect(() => {
-  const { data: sub } = sb.auth.onAuthStateChange(async (evt, sess) => {
-    const online = typeof navigator === "undefined" ? true : navigator.onLine;
+  useEffect(() => {
+    const { data: sub } = sb.auth.onAuthStateChange(async (evt, sess) => {
+      const online = typeof navigator === "undefined" ? true : navigator.onLine;
 
-    try {
-      if (evt === "INITIAL_SESSION") {
-        if (sess?.user && online) {
+      try {
+        if (evt === "INITIAL_SESSION") {
+          if (sess?.user && online) {
+            await loadFromServerReplaceLocal();
+            syncedOnce.current = true;
+          } else {
+            syncedOnce.current = false; // giữ local khi offline
+          }
+          return;
+        }
+
+        if (evt === "SIGNED_IN" && sess?.user) {
+          if (!online) return; // chờ online để merge
+
+          const mergedFor = localStorage.getItem("rg_cart_merged_for");
+          if (mergedFor !== sess.user.id) {
+            const guest = (() => {
+              try {
+                const raw = localStorage.getItem(LS_KEY);
+                return raw ? (JSON.parse(raw) as CartItem[]) : [];
+              } catch {
+                return [];
+              }
+            })();
+
+            try {
+              await mergeGuestIntoServerSafe(guest); // bản safe (max qty) từ hướng dẫn trước
+            } catch (e) {
+              if (!isTransientNetworkError(e))
+                console.warn("merge failed:", supaMsg(e));
+            }
+            localStorage.setItem("rg_cart_merged_for", sess.user.id);
+            localStorage.removeItem(LS_KEY);
+          }
           await loadFromServerReplaceLocal();
           syncedOnce.current = true;
-        } else {
-          syncedOnce.current = false; // giữ local khi offline
+          return;
         }
-        return;
-      }
 
-      if (evt === "SIGNED_IN" && sess?.user) {
-        if (!online) return; // chờ online để merge
-
-        const mergedFor = localStorage.getItem("rg_cart_merged_for");
-        if (mergedFor !== sess.user.id) {
-          const guest = (() => {
-            try {
-              const raw = localStorage.getItem(LS_KEY);
-              return raw ? (JSON.parse(raw) as CartItem[]) : [];
-            } catch { return []; }
-          })();
-
+        if (evt === "SIGNED_OUT") {
           try {
-            await mergeGuestIntoServerSafe(guest);   // bản safe (max qty) từ hướng dẫn trước
-          } catch (e) {
-            if (!isTransientNetworkError(e)) console.warn("merge failed:", supaMsg(e));
+            const raw = localStorage.getItem(LS_KEY);
+            setItems(raw ? JSON.parse(raw) : []);
+          } catch {
+            setItems([]);
           }
-          localStorage.setItem("rg_cart_merged_for", sess.user.id);
-          localStorage.removeItem(LS_KEY);
+          syncedOnce.current = false;
+          localStorage.removeItem("rg_cart_merged_for");
+          return;
         }
-        await loadFromServerReplaceLocal();
-        syncedOnce.current = true;
-        return;
+      } catch (e) {
+        // đừng để reject rơi ra ngoài
+        console.warn("auth state handler:", supaMsg(e));
       }
+    });
 
-      if (evt === "SIGNED_OUT") {
-        try {
-          const raw = localStorage.getItem(LS_KEY);
-          setItems(raw ? JSON.parse(raw) : []);
-        } catch { setItems([]); }
-        syncedOnce.current = false;
-        localStorage.removeItem("rg_cart_merged_for");
-        return;
-      }
-    } catch (e) {
-      // đừng để reject rơi ra ngoài
-      console.warn("auth state handler:", supaMsg(e));
-    }
-  });
+    // khi online lại → đồng bộ cart từ server
+    const onOnline = async () => {
+      try {
+        const user = await safeGetUser(sb);
+        if (user) await loadFromServerReplaceLocal();
+      } catch {}
+    };
+    window.addEventListener("online", onOnline);
 
-  // khi online lại → đồng bộ cart từ server
-  const onOnline = async () => {
-    try {
-      const user = await safeGetUser(sb);
-      if (user) await loadFromServerReplaceLocal();
-    } catch {}
-  };
-  window.addEventListener("online", onOnline);
-
-  return () => {
-    sub.subscription.unsubscribe();
-    window.removeEventListener("online", onOnline);
-  };
-}, []);
-
+    return () => {
+      sub.subscription.unsubscribe();
+      window.removeEventListener("online", onOnline);
+    };
+  }, []);
 
   async function mergeGuestIntoServerSafe(guest: CartItem[]) {
     if (!guest.length || !CartAPI?.list) return;
@@ -180,7 +200,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     // Lấy giỏ hiện tại trên server
     const serverRows = await CartAPI.list();
     const serverMap = new Map<string, number>(
-      serverRows.map((r) => [r.product_id, r.qty])
+      serverRows.map((r: unknown) => {
+        const row = r as { product_id: string; qty: number };
+        return [row.product_id, row.qty] as [string, number];
+      })
     );
 
     for (const g of guest) {

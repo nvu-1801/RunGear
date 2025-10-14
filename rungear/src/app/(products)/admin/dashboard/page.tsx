@@ -8,13 +8,44 @@ type Stats = {
   skus_in_stock: number;
 };
 
+// helper to extract message from unknown errors
+function getMessage(err: unknown) {
+  if (typeof err === "string") return err;
+  if (typeof err === "object" && err !== null && "message" in err) {
+    try {
+      return String((err as { message?: unknown }).message ?? String(err));
+    } catch {
+      return String(err);
+    }
+  }
+  return String(err);
+}
+
+// Order type + type guard
+type Order = {
+  id: string;
+  created_at: string;
+  customer_name?: string | null;
+  total: number | string;
+  status?: string;
+};
+function isOrder(v: unknown): v is Order {
+  return (
+    typeof v === "object" &&
+    v !== null &&
+    "id" in v &&
+    "created_at" in v &&
+    "total" in v
+  );
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
   // Thêm state cho lịch sử đơn hàng gần đây
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<unknown[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
 
   useEffect(() => {
@@ -26,8 +57,8 @@ export default function DashboardPage() {
         setStats(
           data?.[0] ?? { sold_this_month: 0, total_stock: 0, skus_in_stock: 0 }
         );
-      } catch (e: any) {
-        setErr(e.message);
+      } catch (e: unknown) {
+        setErr(getMessage(e));
       } finally {
         setLoading(false);
       }
@@ -46,9 +77,9 @@ export default function DashboardPage() {
           .order("created_at", { ascending: false })
           .limit(5);
         if (error) throw error;
-        setOrders(data ?? []);
-      } catch (e: any) {
-        // Có thể xử lý lỗi nếu muốn
+        setOrders((data ?? []) as unknown[]);
+      } catch (e: unknown) {
+        console.error(getMessage(e));
       } finally {
         setOrdersLoading(false);
       }
@@ -165,7 +196,7 @@ export default function DashboardPage() {
         </h2>
         {ordersLoading ? (
           <div className="animate-pulse text-blue-600">Đang tải đơn hàng…</div>
-        ) : orders.length === 0 ? (
+        ) : orders.filter(isOrder).length === 0 ? (
           <div className="text-gray-500">Chưa có đơn hàng nào.</div>
         ) : (
           <div className="overflow-x-auto">
@@ -190,7 +221,7 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {orders.map((o) => (
+                {orders.filter(isOrder).map((o) => (
                   <tr
                     key={o.id}
                     className="border-t hover:bg-blue-50 transition"
@@ -210,13 +241,13 @@ export default function DashboardPage() {
                     <td className="p-3">
                       <span
                         className={`px-2 py-1 rounded-lg border text-xs font-semibold
-                        ${
-                          o.status === "PAID"
-                            ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                            : o.status === "CANCEL"
-                            ? "bg-red-50 border-red-200 text-red-700"
-                            : "bg-yellow-50 border-yellow-200 text-yellow-700"
-                        }
+                          ${
+                            o.status === "PAID"
+                              ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                              : o.status === "CANCEL"
+                              ? "bg-red-50 border-red-200 text-red-700"
+                              : "bg-yellow-50 border-yellow-200 text-yellow-700"
+                          }
                       `}
                       >
                         {o.status}

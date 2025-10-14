@@ -28,7 +28,9 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
   const router = useRouter();
   const sp = useSearchParams();
   // Chỉ cho phép relative redirect nội bộ
-  const redirectTo = sp.get("redirect")?.startsWith("/") ? sp.get("redirect")! : "/home";
+  const redirectTo = sp.get("redirect")?.startsWith("/")
+    ? sp.get("redirect")!
+    : "/home";
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -72,8 +74,17 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
         await sb.auth.refreshSession();
         router.replace(redirectTo);
         router.refresh();
-      } catch (err: any) {
-        setMsg(humanize(err?.message));
+      } catch (err: unknown) {
+        // safe extract message from unknown
+        const maybeMessage =
+          typeof err === "object" && err !== null && "message" in err
+            ? (err as { message?: unknown }).message
+            : undefined;
+        setMsg(
+          humanize(
+            typeof maybeMessage === "string" ? maybeMessage : String(err)
+          )
+        );
         console.error("[auth]", err);
       }
     });
@@ -83,10 +94,11 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
     if (pending) return; // chặn double click
     const sb = supabaseBrowser();
     const origin = window.location.origin;
-    const next =
-      new URLSearchParams(window.location.search).get("redirect")?.startsWith("/")
-        ? new URLSearchParams(window.location.search).get("redirect")!
-        : "/home";
+    const next = new URLSearchParams(window.location.search)
+      .get("redirect")
+      ?.startsWith("/")
+      ? new URLSearchParams(window.location.search).get("redirect")!
+      : "/home";
 
     // Quan trọng: redirectTo phải đúng /auth/callback và đã whitelisted
     const { data, error } = await sb.auth.signInWithOAuth({
@@ -95,7 +107,7 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
         redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
         // (tuỳ chọn) giúp user chọn account lại và xin refresh_token
         queryParams: {
-          prompt: "select_account",   // hoặc "consent"
+          prompt: "select_account", // hoặc "consent"
           access_type: "offline",
         },
         scopes: "openid email profile",
@@ -205,7 +217,11 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
         disabled={pending}
         className="w-full h-10 rounded-full bg-gray-900 hover:bg-black text-white transition disabled:opacity-60"
       >
-        {pending ? "Đang xử lý..." : mode === "signin" ? "Đăng nhập" : "Đăng ký"}
+        {pending
+          ? "Đang xử lý..."
+          : mode === "signin"
+          ? "Đăng nhập"
+          : "Đăng ký"}
       </button>
 
       {msg && (

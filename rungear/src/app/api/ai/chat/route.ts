@@ -10,6 +10,18 @@ const MODEL_CANDIDATES = [
   "gemini-1.5-flash",
 ];
 
+// helper to safely extract message from unknown errors
+function getMessage(err: unknown) {
+  if (typeof err === "object" && err !== null && "message" in err) {
+    try {
+      return String((err as { message?: unknown }).message ?? String(err));
+    } catch {
+      return String(err);
+    }
+  }
+  return String(err);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { prompt, history } = await req.json();
@@ -18,44 +30,56 @@ export async function POST(req: NextRequest) {
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return new Response("Server missing GEMINI_API_KEY", { status: 500 });
+    if (!apiKey)
+      return new Response("Server missing GEMINI_API_KEY", { status: 500 });
 
-    // Tạo client (nếu SDK của bạn hỗ trợ object, dùng { apiKey }).
-    const genAI =
-      // @google/generative-ai các bản cũ dùng ctor dạng string:
-      new GoogleGenerativeAI(apiKey);
+    const genAI = new GoogleGenerativeAI(apiKey);
 
-    // Lịch sử → contents
-    const histContents =
-      Array.isArray(history)
-        ? history
-            .filter((m: any) => m && typeof m.text === "string" && (m.role === "user" || m.role === "assistant"))
-            .map((m: any) => ({
-              role: m.role === "user" ? "user" : "model",
-              parts: [{ text: m.text as string }],
-            }))
-        : [];
+    const histContents = Array.isArray(history)
+      ? history
+          .filter((m: unknown) => {
+            if (typeof m !== "object" || m === null) return false;
+            const mm = m as { text?: unknown; role?: unknown };
+            return (
+              typeof mm.text === "string" &&
+              (mm.role === "user" || mm.role === "assistant")
+            );
+          })
+          .map((m: unknown) => {
+            const mm = m as { text: string; role: string };
+            return {
+              role: mm.role === "user" ? "user" : "model",
+              parts: [{ text: mm.text }],
+            };
+          })
+      : [];
 
-    // Render biến trong prompt (vd: STORE_NAME lấy từ ENV)
     const systemPrompt = renderPrompt(SALES_SYSTEM_PROMPT, {
       STORE_NAME: process.env.STORE_NAME ?? "Run Gear",
     });
 
     const tryModelsInOrder = async () => {
-      let lastErr: any = null;
+      let lastErr: unknown = null;
       for (const modelId of MODEL_CANDIDATES) {
         try {
           const model = genAI.getGenerativeModel({
             model: modelId,
-            systemInstruction: systemPrompt, // ✅ đặt system ở init
+            systemInstruction: systemPrompt,
           });
           const result = await model.generateContentStream({
-            contents: [...histContents, { role: "user", parts: [{ text: prompt }] }],
+            contents: [
+              ...histContents,
+              { role: "user", parts: [{ text: prompt }] },
+            ],
           });
           return { modelId, stream: result.stream };
-        } catch (e: any) {
-          const msg = e?.message || String(e);
-          if (msg.includes("404") || msg.includes("not found") || msg.includes("is not supported")) {
+        } catch (e: unknown) {
+          const msg = getMessage(e);
+          if (
+            msg.includes("404") ||
+            msg.includes("not found") ||
+            msg.includes("is not supported")
+          ) {
             lastErr = e;
             continue;
           }
@@ -72,11 +96,11 @@ export async function POST(req: NextRequest) {
       async start(controller) {
         try {
           for await (const chunk of stream) {
-            const part = chunk.text();
+            const part = (chunk as unknown as { text?: () => string }).text?.();
             if (part) controller.enqueue(encoder.encode(part));
           }
-        } catch (err: any) {
-          controller.enqueue(encoder.encode(`\n[AI error] ${err?.message || String(err)}`));
+        } catch (err: unknown) {
+          controller.enqueue(encoder.encode(`\n[AI error] ${getMessage(err)}`));
         } finally {
           controller.close();
         }
@@ -90,7 +114,7 @@ export async function POST(req: NextRequest) {
         "X-Model-Used": modelId,
       },
     });
-  } catch (e: any) {
-    return new Response(e?.message || String(e), { status: 500 });
+  } catch (e: unknown) {
+    return new Response(getMessage(e), { status: 500 });
   }
 }

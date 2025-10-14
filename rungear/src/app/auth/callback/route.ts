@@ -31,9 +31,26 @@ async function handle(request: Request) {
       cookies: {
         get: (name: string) => cookieStore.get(name)?.value,
         set: (name: string, value: string, options: CookieOptions) =>
-          (cookieStore as any).set({ name, value, ...options }),
+          (
+            cookieStore as unknown as {
+              set: (c: Record<string, unknown>) => void;
+            }
+          ).set({
+            name,
+            value,
+            ...options,
+          }),
         remove: (name: string, options: CookieOptions) =>
-          (cookieStore as any).set({ name, value: "", ...options, maxAge: 0 }),
+          (
+            cookieStore as unknown as {
+              set: (c: Record<string, unknown>) => void;
+            }
+          ).set({
+            name,
+            value: "",
+            ...options,
+            maxAge: 0,
+          }),
       },
     }
   );
@@ -47,8 +64,12 @@ async function handle(request: Request) {
   return NextResponse.redirect(new URL(next, request.url));
 }
 
-export async function GET(request: Request) { return handle(request); }
-export async function POST(request: Request) { return handle(request); }
+export async function GET(request: Request) {
+  return handle(request);
+}
+export async function POST(request: Request) {
+  return handle(request);
+}
 
 // Không cache để tránh lỗi state
 export const dynamic = "force-dynamic";

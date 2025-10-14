@@ -103,7 +103,9 @@ export default function SupportChatPanel({ sessionId }: { sessionId: string }) {
     if (!text || sending) return;
     setSending(true);
     try {
-      const { data: { user } } = await sb.auth.getUser();
+      const {
+        data: { user },
+      } = await sb.auth.getUser();
       if (!user) {
         console.error("Admin not authenticated");
         setSending(false);
@@ -116,13 +118,16 @@ export default function SupportChatPanel({ sessionId }: { sessionId: string }) {
         user_id: user.id,
       });
       if (error) {
-        console.error("Insert failed:", error.message);
+        console.error(
+          "Insert failed:",
+          (error as { message?: unknown }).message ?? error
+        );
       } else {
         setInput("");
         // sau khi gửi: cuộn mượt xuống cuối
         wantScrollRef.current = "smooth";
       }
-    } catch (e) {
+    } catch (e: unknown) {
       console.error("Send exception:", e);
     } finally {
       setSending(false);
@@ -130,7 +135,10 @@ export default function SupportChatPanel({ sessionId }: { sessionId: string }) {
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const isComposing = (e.nativeEvent as any)?.isComposing || e.keyCode === 229;
+    const native = e.nativeEvent as unknown;
+    const composingVal = (native as { isComposing?: unknown }).isComposing;
+    const isComposing =
+      typeof composingVal === "boolean" ? composingVal : e.keyCode === 229;
     if (isComposing) return;
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -139,7 +147,10 @@ export default function SupportChatPanel({ sessionId }: { sessionId: string }) {
   };
 
   const pretty = (iso: string) =>
-    new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    new Date(iso).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
   const bgPattern =
     "bg-[radial-gradient(1200px_600px_at_100%_-10%,rgba(99,102,241,0.08),transparent),radial-gradient(1200px_600px_at_0%_110%,rgba(244,114,182,0.08),transparent)]";
@@ -154,10 +165,14 @@ export default function SupportChatPanel({ sessionId }: { sessionId: string }) {
           </span>
           <div className="leading-tight">
             <div className="font-semibold text-gray-800">Admin Support</div>
-            <div className="text-[11px] text-emerald-600 font-medium">● Đang hoạt động</div>
+            <div className="text-[11px] text-emerald-600 font-medium">
+              ● Đang hoạt động
+            </div>
           </div>
         </div>
-        <span className="text-xs text-gray-500 hidden sm:inline">#{sessionId.slice(0, 8)}…</span>
+        <span className="text-xs text-gray-500 hidden sm:inline">
+          #{sessionId.slice(0, 8)}…
+        </span>
       </div>
 
       {/* Messages (scroll trong khung này) */}
@@ -168,7 +183,10 @@ export default function SupportChatPanel({ sessionId }: { sessionId: string }) {
         {msgs.map((m) => {
           const isAdmin = m.role === "admin";
           return (
-            <div key={m.id} className={`flex ${isAdmin ? "justify-end" : "justify-start"}`}>
+            <div
+              key={m.id}
+              className={`flex ${isAdmin ? "justify-end" : "justify-start"}`}
+            >
               <div className="max-w-[78%] sm:max-w-[70%]">
                 <div
                   className={[
@@ -182,7 +200,11 @@ export default function SupportChatPanel({ sessionId }: { sessionId: string }) {
                     {m.text}
                   </div>
                 </div>
-                <div className={`mt-1 text-[10px] ${isAdmin ? "text-white/80" : "text-gray-400"}`}>
+                <div
+                  className={`mt-1 text-[10px] ${
+                    isAdmin ? "text-white/80" : "text-gray-400"
+                  }`}
+                >
                   {isAdmin ? "Bạn" : "Khách"} • {pretty(m.created_at)}
                 </div>
               </div>
@@ -193,10 +215,26 @@ export default function SupportChatPanel({ sessionId }: { sessionId: string }) {
       </div>
 
       {/* Input */}
-      <form onSubmit={(e) => { e.preventDefault(); void doSend(); }} className="border-t bg-white p-3 sm:p-4 shrink-0">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void doSend();
+        }}
+        className="border-t bg-white p-3 sm:p-4 shrink-0"
+      >
         <div className="flex items-end gap-2">
-          <button type="button" className="h-9 w-9 rounded-lg border border-gray-200 grid place-items-center hover:shadow-sm hover:bg-gray-50">😊</button>
-          <button type="button" className="h-9 w-9 rounded-lg border border-gray-200 grid place-items-center hover:shadow-sm hover:bg-gray-50">📎</button>
+          <button
+            type="button"
+            className="h-9 w-9 rounded-lg border border-gray-200 grid place-items-center hover:shadow-sm hover:bg-gray-50"
+          >
+            😊
+          </button>
+          <button
+            type="button"
+            className="h-9 w-9 rounded-lg border border-gray-200 grid place-items-center hover:shadow-sm hover:bg-gray-50"
+          >
+            📎
+          </button>
           <textarea
             rows={1}
             placeholder="Nhập tin nhắn…"

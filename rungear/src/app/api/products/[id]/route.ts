@@ -1,21 +1,19 @@
-import { NextResponse } from "next/server";
-import {
-  getProductById,
-  listProducts,
-} from "@/modules/products/controller/product.service";
+import { NextResponse, type NextRequest } from "next/server";
 import { supabaseServer } from "@/libs/db/supabase/supabase-server";
+import { getProductById } from "@/modules/products/controller/product.service";
 
 // API GET: Lấy thông tin sản phẩm theo ID
 export async function GET(
-  req: Request,
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await ctx.params;
   try {
-    const product = await getProductById(params.id);
+    const product = await getProductById(id);
     if (!product)
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     return NextResponse.json(product);
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("/api/products/[id] GET", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
@@ -23,24 +21,29 @@ export async function GET(
 
 // API PUT: Cập nhật thông tin sản phẩm theo ID
 export async function PUT(
-  req: Request,
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await ctx.params;
   try {
     const body = await req.json();
     const sb = await supabaseServer();
     const { data, error } = await sb
       .from("products")
       .update(body)
-      .eq("id", params.id)
+      .eq("id", id)
       .select()
       .single();
     if (error) throw error;
     return NextResponse.json(data);
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("/api/products/[id] PUT", err);
+    const msg =
+      typeof err === "object" && err !== null && "message" in err
+        ? String((err as { message?: unknown }).message ?? String(err))
+        : String(err);
     return NextResponse.json(
-      { error: err?.message ?? "Update failed" },
+      { error: msg ?? "Update failed" },
       { status: 400 }
     );
   }
@@ -48,18 +51,23 @@ export async function PUT(
 
 // API DELETE: Xoá sản phẩm theo ID (Soft Delete)
 export async function DELETE(
-  req: Request,
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await ctx.params;
   try {
     const sb = await supabaseServer();
-    const { error } = await sb.from("products").delete().eq("id", params.id);
+    const { error } = await sb.from("products").delete().eq("id", id);
     if (error) throw error;
     return NextResponse.json({ success: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("/api/products/[id] DELETE", err);
+    const msg =
+      typeof err === "object" && err !== null && "message" in err
+        ? String((err as { message?: unknown }).message ?? String(err))
+        : String(err);
     return NextResponse.json(
-      { error: err?.message ?? "Delete failed" },
+      { error: msg ?? "Delete failed" },
       { status: 400 }
     );
   }
