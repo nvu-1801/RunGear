@@ -20,9 +20,17 @@
 }
 
 @keyframes gradientShift {
-  0% { filter: hue-rotate(0deg) saturate(1); }
-  50% { filter: hue-rotate(20deg) saturate(1.1); }
-  100% { filter: hue-rotate(0deg) saturate(1); }
+  0% {
+    filter: hue-rotate(0deg) saturate(1);
+  }
+
+  50% {
+    filter: hue-rotate(20deg) saturate(1.1);
+  }
+
+  100% {
+    filter: hue-rotate(0deg) saturate(1);
+  }
 }
 
 
@@ -131,4 +139,24 @@ body {
 
 .animate-fadeSlide {
   animation: fadeSlide 0.18s ease-out;
+}
+
+/* Ẩn thanh scrollbar ngang trên mobile */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* globals.css */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

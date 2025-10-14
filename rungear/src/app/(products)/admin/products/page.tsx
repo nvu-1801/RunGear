@@ -1,23 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ProductForm from "./ProductForm";
 import { use } from "react";
+import { get } from "http";
 
-type categories_id = { id: string; name: string; slug: string };
+type Category = { id: string; name: string; slug: string };
 type Product = {
   id: string;
   name: string;
   slug: string;
   price: number;
   stock: number;
-  imageUrl?: string | null;
+  images: string | null;
   status: "draft" | "active" | "hidden";
-  categories_id?: "1d4478e7-c9d2-445e-8520-14dae73aac68" | "3c0144cf-7a2e-4c59-8ad7-351a27d2fc1d" | "e9819e30-a5dc-4cd1-835d-206bb882fc09";
+  categories_id: "1d4478e7-c9d2-445e-8520-14dae73aac68" | "3c0144cf-7a2e-4c59-8ad7-351a27d2fc1d" | "e9819e30-a5dc-4cd1-835d-206bb882fc09";
 };
 
 type PageResp = {
-  items: (Product & { categories_id?: categories_id | null })[];
+  items: (Product & { categories_id?: Category | null })[];
   total: number;
   page: number;
   pageSize: number;
@@ -33,16 +34,33 @@ export default function ProductManager({
       slug: string;
       price: number;
       stock: number;
-      imageUrl?: string | null;
+      images: string | null;
       status: "draft" | "active" | "hidden";
-      categories_id?: categories_id;
+      categories_id: Category;
     }[]
   >;
-}) {
+  }) {
+  const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [loading, setLoading] = useState(false);
   const [allPosts, setAllPosts] = useState<Product[]>([]);
-  useEffect(() => {
-    // Hàm async để lấy dữ liệu từ Promise 'posts'
-    const fetchList = async () => {
+  const [data, setData] = useState<PageResp>({
+    items: [],
+    total: 1,
+    page: 1,
+    pageSize: 1,
+  });
+
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<Product | null>(null);
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(data.total / data.pageSize)),
+    [data.total, data.pageSize]
+  );
+  
+
+    const fetchList = useCallback(async () => {
       setLoading(true);
       const url = new URL("/api/products", window.location.origin);
       console.log("Fetching from URL:", url.toString());
@@ -51,7 +69,7 @@ export default function ProductManager({
       if (q) url.searchParams.set("q", q);
       url.searchParams.set("page", String(page));
       url.searchParams.set("pageSize", String(pageSize));
-
+    
       try {
         const r = await fetch(url, { cache: "no-store" });
 
@@ -60,82 +78,31 @@ export default function ProductManager({
         if (!r.ok) {
           throw new Error("Network response was not ok");
         }
-
-        const json = await r.json();
-        console.log("JSON Data:", json); // Kiểm tra dữ liệu JSON nhận được
-
-        setData(json); // Cập nhật dữ liệu vào state
-        return json;
+        const json: PageResp = await r.json();
+        console.log("Fetched JSON:", json);
+        if (Array.isArray(json)) {
+          const pageResp: PageResp = {
+            items: json,
+            total: json.length,
+            page: page,
+            pageSize: pageSize
+          };
+        console.log("✅ Converted to PageResp:", pageResp);
+        setData(pageResp); // Cập nhật dữ liệu vào state
+        setAllPosts(json);
+        return pageResp;
+        }
       } catch (error) {
         console.error("Fetch Error:", error);
       } finally {
         setLoading(false); // Kết thúc loading
       }
-    };
-    const fetchData = async () => {
-      try {
-        let data = await fetchList();
-        setAllPosts(data);
-      } catch (error) {
-        console.error("Error fetching posts:", error);
-      }
-    };
-
-    fetchData();
-  }, [posts]); // Mỗi khi posts thay đổi, sẽ gọi lại fetchData()
-
-  const [q, setQ] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize] = useState(10);
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<PageResp>({
-    items: [],
-    total: 1,
-    page: 1,
-    pageSize: 1,
-  });
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<Product | null>(null);
-  const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(data.total / data.pageSize)),
-    [data.total, data.pageSize]
-  );
-
-  const fetchList = async () => {
-    setLoading(true);
-    const url = new URL("/api/products", window.location.origin);
-    console.log("Fetching from URL:", url.toString());
-
-    // Thêm query params nếu có
-    if (q) url.searchParams.set("q", q);
-    url.searchParams.set("page", String(page));
-    url.searchParams.set("pageSize", String(pageSize));
-
-    try {
-      const r = await fetch(url, { cache: "no-store" });
-
-      // Kiểm tra response
-      console.log("Response:", r);
-      if (!r.ok) {
-        throw new Error("Network response was not ok");
-      }
-
-      const json = await r.json();
-      console.log("JSON Data:", json); // Kiểm tra dữ liệu JSON nhận được
-
-      setData(json); // Cập nhật dữ liệu vào state
-    } catch (error) {
-      console.error("Fetch Error:", error);
-    } finally {
-      setLoading(false); // Kết thúc loading
-    }
-  };
-
+    }, [q, page, pageSize]);
   useEffect(() => {
     fetchList();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, page, pageSize]);
+  }, [fetchList, posts]);
 
+  //CRUD Handlers
   const onCreate = () => {
     setEditing(null);
     setShowForm(true);
@@ -146,13 +113,22 @@ export default function ProductManager({
   };
   const onDelete = async (id: string) => {
     if (!confirm("Delete this product?")) return;
-    await fetch(`/api/admin/products/${id}`, { method: "DELETE" });
+    await fetch(`/api/products/${id}`, { method: "DELETE" });
+    console.log("Deleted product with id:", id);
     fetchList();
   };
   const onSaved = () => {
     setShowForm(false);
     fetchList();
   };
+  const getCategoryName = (categoryId: string): string => {
+  const categories: Record<string, string> = {
+    "1d4478e7-c9d2-445e-8520-14dae73aac68": "Áo",
+    "3c0144cf-7a2e-4c59-8ad7-351a27d2fc1d": "Quần",
+    "e9819e30-a5dc-4cd1-835d-206bb882fc09": "Giày"
+  };
+  return categories[categoryId];
+};
 
   return (
     <div className="space-y-4 mt-6">
@@ -200,7 +176,7 @@ export default function ProductManager({
                   <td className="p-3">
                     <div className="flex items-center gap-3">
                       <img
-                        src={p.imageUrl || "https://placehold.co/60x60"}
+                        src={p.images || "https://placehold.co/60x60"}
                         alt={p.name}
                         className="w-12 h-12 rounded-lg object-cover"
                       />
@@ -210,7 +186,7 @@ export default function ProductManager({
                       </div>
                     </div>
                   </td>
-                  <td className="p-3">{p.categories_id?.name ?? "-"}</td>
+                  <td className="p-3">{getCategoryName(p.categories_id)}</td>
                   <td className="p-3">{(p.price / 1).toLocaleString()} ₫</td>
                   <td className="p-3">{p.stock}</td>
                   <td className="p-3">

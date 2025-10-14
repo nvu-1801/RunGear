@@ -23,6 +23,8 @@ export async function GET(req: Request) {
 }
 // API POST: Tạo sản phẩm mới
 export async function POST(req: Request) {
+
+
   try {
     const body = await req.json();
     const {
@@ -66,3 +68,30 @@ export async function POST(req: Request) {
   }
 }
 
+// API DELETE: Xoá sản phẩm theo ID
+export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
+
+  try {
+    const supabase = await supabaseServer();
+    const { data, error } = await supabase
+      .from("products")
+      .delete()
+      .eq("id", id)
+      .select()
+      .single();
+    
+    
+    
+    if (error) {
+      console.error("DELETE /api/products/:id error:", { id, error });
+      return NextResponse.json({ message: error.message }, { status: 400 });
+    }
+    if (!data) return NextResponse.json({ message: "Product not found" }, { status: 404 });
+
+    return NextResponse.json(data, { status: 200 });
+  } catch (e: any) {
+    console.error("DELETE /api/products/:id exception:", e);
+    return NextResponse.json({ message: e?.message ?? "Server error" }, { status: 500 });
+  }
+}

@@ -183,7 +183,7 @@ export default function Chatbot() {
             meta: { model: "gemini-1.5-flash" },
           }),
         });
-      } catch {}
+      } catch { }
 
       // LOG: assistant final answer
       try {
@@ -197,17 +197,17 @@ export default function Chatbot() {
             meta: { model: "gemini-1.5-flash" },
           }),
         });
-      } catch {}
+      } catch { }
     } catch (e) {
       setMsgs((m) =>
         m.map((msg) =>
           msg.id === asstLocalId
             ? {
-                ...msg,
-                text:
-                  (msg.text || "") +
-                  "\n\nXin lỗi, hệ thống AI đang bận. Vui lòng thử lại.",
-              }
+              ...msg,
+              text:
+                (msg.text || "") +
+                "\n\nXin lỗi, hệ thống AI đang bận. Vui lòng thử lại.",
+            }
             : msg
         )
       );
@@ -240,24 +240,25 @@ export default function Chatbot() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messageId: id, rating, text: msg?.text ?? "" }),
       });
-    } catch {}
+    } catch { }
   };
 
   return (
     <>
       {/* Floating Button */}
       <button
-        aria-label="Open AI Chat"
+        aria-label="Mở chat AI"
         onClick={() => setOpen(true)}
-        className="fixed bottom-5 right-5 z-[110] group flex items-center gap-3 rounded-full px-4 py-3 shadow-xl
-                  bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500
-                  ring-1 ring-white/10 transition"
+        className="fixed bottom-6 right-6 z-[110] flex items-center gap-3 rounded-full 
+                 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500
+                 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300
+                 px-4 py-3 ring-1 ring-white/20"
       >
-        <span className="relative inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10">
+        <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white/15">
           <SparkIcon className="h-5 w-5" />
-          <span className="absolute -right-1 -top-1 inline-flex h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-indigo-600" />
+          <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-indigo-600" />
         </span>
-        <span className="hidden sm:block font-semibold">Hỏi AI</span>
+        <span className="hidden sm:inline text-[15px]">Hỏi AI</span>
       </button>
 
       {/* Modal */}
@@ -382,18 +383,16 @@ export default function Chatbot() {
                         <div className="mt-1 flex items-center gap-1 text-gray-400">
                           <button
                             onClick={() => rateMessage(m.id, "up")}
-                            className={`h-7 w-7 grid place-items-center rounded hover:bg-gray-100 ${
-                              m.rating === "up" ? "text-emerald-600" : ""
-                            }`}
+                            className={`h-7 w-7 grid place-items-center rounded hover:bg-gray-100 ${m.rating === "up" ? "text-emerald-600" : ""
+                              }`}
                             title="Hữu ích"
                           >
                             👍
                           </button>
                           <button
                             onClick={() => rateMessage(m.id, "down")}
-                            className={`h-7 w-7 grid place-items-center rounded hover:bg-gray-100 ${
-                              m.rating === "down" ? "text-rose-600" : ""
-                            }`}
+                            className={`h-7 w-7 grid place-items-center rounded hover:bg-gray-100 ${m.rating === "down" ? "text-rose-600" : ""
+                              }`}
                             title="Chưa ổn"
                           >
                             👎
