@@ -43,3 +43,44 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     return NextResponse.json({ message: e?.message ?? "Server error" }, { status: 500 });
   }
 }
+// API DeLETE: Xoá sản phẩm theo ID (Soft Delete)
+export async function DELETE(
+  req: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    console.log("DELETE /api/products/:id called");
+    const { id } = await context.params;
+
+    if (!id) {
+      return NextResponse.json({ message: "Missing product id" }, { status: 400 });
+    }
+
+    const supabase = await supabaseServer();
+    
+    // Soft delete: đánh dấu is_deleted = true thay vì xóa thật
+    const { data, error } = await supabase
+      .from("products")
+      .update({ is_deleted: true })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("DELETE /api/products/:id error:", { id, error });
+      return NextResponse.json({ message: error.message }, { status: 400 });
+    }
+
+    if (!data) {
+      return NextResponse.json({ message: "Product not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(data, { status: 200 });
+  } catch (e: any) {
+    console.error("DELETE /api/products/:id exception:", e);
+    return NextResponse.json(
+      { message: e?.message ?? "Server error" },
+      { status: 500 }
+    );
+  }
+}
