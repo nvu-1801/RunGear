@@ -2,8 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ProductForm from "./ProductForm";
-import { use } from "react";
-import { get } from "http";
 
 type Category = { id: string; name: string; slug: string };
 type Product = {
@@ -14,7 +12,12 @@ type Product = {
   stock: number;
   images: string | null;
   status: "draft" | "active" | "hidden";
-  categories_id: "1d4478e7-c9d2-445e-8520-14dae73aac68" | "3c0144cf-7a2e-4c59-8ad7-351a27d2fc1d" | "e9819e30-a5dc-4cd1-835d-206bb882fc09";
+  // match the specific category ids used elsewhere so the local Product type
+  // is compatible with ProductInput used by ProductForm
+  categories_id:
+    | "1d4478e7-c9d2-445e-8520-14dae73aac68"
+    | "3c0144cf-7a2e-4c59-8ad7-351a27d2fc1d"
+    | "e9819e30-a5dc-4cd1-835d-206bb882fc09";
 };
 
 type PageResp = {
@@ -24,22 +27,7 @@ type PageResp = {
   pageSize: number;
 };
 
-export default function ProductManager({
-  posts,
-}: {
-  posts: Promise<
-    {
-      id: string;
-      name: string;
-      slug: string;
-      price: number;
-      stock: number;
-      images: string | null;
-      status: "draft" | "active" | "hidden";
-      categories_id: Category;
-    }[]
-  >;
-  }) {
+export default function ProductManager() {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
@@ -47,62 +35,64 @@ export default function ProductManager({
   const [allPosts, setAllPosts] = useState<Product[]>([]);
   const [data, setData] = useState<PageResp>({
     items: [],
-    total: 1,
+    total: 0,
     page: 1,
-    pageSize: 1,
+    pageSize: pageSize,
   });
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
+
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(data.total / data.pageSize)),
     [data.total, data.pageSize]
   );
-  
 
-    const fetchList = useCallback(async () => {
-      setLoading(true);
-      const url = new URL("/api/products", window.location.origin);
-      console.log("Fetching from URL:", url.toString());
+  const fetchList = useCallback(async () => {
+    setLoading(true);
+    const url = new URL("/api/products", window.location.origin);
 
-      // Thêm query params nếu có
-      if (q) url.searchParams.set("q", q);
-      url.searchParams.set("page", String(page));
-      url.searchParams.set("pageSize", String(pageSize));
-    
-      try {
-        const r = await fetch(url, { cache: "no-store" });
+    if (q) url.searchParams.set("q", q);
+    url.searchParams.set("page", String(page));
+    url.searchParams.set("pageSize", String(pageSize));
 
-        // Kiểm tra response
-        console.log("Response:", r);
-        if (!r.ok) {
-          throw new Error("Network response was not ok");
-        }
-        const json: PageResp = await r.json();
-        console.log("Fetched JSON:", json);
-        if (Array.isArray(json)) {
-          const pageResp: PageResp = {
-            items: json,
-            total: json.length,
-            page: page,
-            pageSize: pageSize
-          };
-        console.log("✅ Converted to PageResp:", pageResp);
-        setData(pageResp); // Cập nhật dữ liệu vào state
-        setAllPosts(json);
+    try {
+      const r = await fetch(url.toString(), { cache: "no-store" });
+      if (!r.ok) throw new Error("Network response was not ok");
+      const json = (await r.json()) as PageResp | Product[];
+
+      // normalize response shape
+      if (Array.isArray(json)) {
+        const items = json as Product[];
+        const pageResp: PageResp = {
+          items: items.map((i) => ({
+            ...i,
+            categories_id: i.categories_id as any,
+          })),
+          total: items.length,
+          page,
+          pageSize,
+        };
+        setData(pageResp);
+        setAllPosts(items);
         return pageResp;
-        }
-      } catch (error) {
-        console.error("Fetch Error:", error);
-      } finally {
-        setLoading(false); // Kết thúc loading
+      } else {
+        setData(json);
+        setAllPosts(json.items as Product[]);
+        return json;
       }
-    }, [q, page, pageSize]);
-  useEffect(() => {
-    fetchList();
-  }, [fetchList, posts]);
+    } catch (error) {
+      console.error("Fetch Error:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [q, page, pageSize]);
 
-  //CRUD Handlers
+  useEffect(() => {
+    void fetchList();
+  }, [fetchList]);
+
+  // CRUD Handlers
   const onCreate = () => {
     setEditing(null);
     setShowForm(true);
@@ -114,21 +104,20 @@ export default function ProductManager({
   const onDelete = async (id: string) => {
     if (!confirm("Delete this product?")) return;
     await fetch(`/api/products/${id}`, { method: "DELETE" });
-    console.log("Deleted product with id:", id);
-    fetchList();
+    void fetchList();
   };
   const onSaved = () => {
     setShowForm(false);
-    fetchList();
+    void fetchList();
   };
   const getCategoryName = (categoryId: string): string => {
-  const categories: Record<string, string> = {
-    "1d4478e7-c9d2-445e-8520-14dae73aac68": "Áo",
-    "3c0144cf-7a2e-4c59-8ad7-351a27d2fc1d": "Quần",
-    "e9819e30-a5dc-4cd1-835d-206bb882fc09": "Giày"
+    const categories: Record<string, string> = {
+      "1d4478e7-c9d2-445e-8520-14dae73aac68": "Áo",
+      "3c0144cf-7a2e-4c59-8ad7-351a27d2fc1d": "Quần",
+      "e9819e30-a5dc-4cd1-835d-206bb882fc09": "Giày",
+    };
+    return categories[categoryId] ?? "Unknown";
   };
-  return categories[categoryId];
-};
 
   return (
     <div className="space-y-4 mt-6">
