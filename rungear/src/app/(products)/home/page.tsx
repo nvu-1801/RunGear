@@ -14,20 +14,16 @@ function formatInt(n: number) {
   return nfVI.format(n);
 }
 function hashTo01(str: string) {
-  // simple, deterministic hash -> [0,1)
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) {
     h ^= str.charCodeAt(i);
     h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
   }
-  // unsigned & normalize
   return ((h >>> 0) % 1000) / 1000;
 }
 function getRatingFor(id: string) {
   const r = hashTo01(id);
-  // 3.6 → 5.0 (thiên về cao để tăng trust)
-  const rating = Math.round((3.6 + r * 1.4) * 2) / 2; // bậc 0.5
-  // 15 → 480 reviews
+  const rating = Math.round((3.6 + r * 1.4) * 2) / 2;
   const reviews = 15 + Math.floor(r * 465);
   return { rating, reviews };
 }
@@ -100,12 +96,10 @@ export default async function ProductsPage({
 
   const page = Math.max(1, Number(p) || 1);
 
-  // Lọc sản phẩm theo giá nếu có min/max
   let items = await listProducts({ q, cat });
   if (min) items = items.filter((i) => i.price >= Number(min));
   if (max) items = items.filter((i) => i.price <= Number(max));
 
-  // Banner: lấy 5 ảnh từ products
   const bannerImages = Array.from(
     new Set(
       items
@@ -114,7 +108,6 @@ export default async function ProductsPage({
     )
   ).slice(0, 5);
 
-  // Phân trang: 2 hàng / trang -> 8 items
   const pageSize = 8;
   const total = items.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -123,7 +116,6 @@ export default async function ProductsPage({
   const end = Math.min(start + pageSize, total);
   const pageItems = items.slice(start, end);
 
-  // Build query helper
   const buildQuery = (
     extra: Record<string, string | number | undefined> = {}
   ) => {
@@ -138,22 +130,27 @@ export default async function ProductsPage({
 
   return (
     <main className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 py-6 md:py-10">
-      {/* 🖼 Banner */}
-      <BannerSlider
-        images={bannerImages.length ? bannerImages : ["/placeholder.png"]}
-      />
+      {/* Banner: responsive aspect + fallback */}
+      <div className="mb-6">
+        <BannerSlider
+          images={bannerImages.length ? bannerImages : ["/placeholder.png"]}
+          className="rounded-2xl overflow-hidden"
+          aspect="16/6"
+        />
+      </div>
 
-      {/* 🔍 Search & Filter (Desktop) */}
+      {/* Search & Filter (desktop + compact mobile) */}
       <form
         method="get"
-        className="hidden md:flex flex-row items-center justify-between gap-4 mt-10 mb-6"
+        className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mt-6 mb-6"
         aria-label="Tìm kiếm và lọc"
       >
-        <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Cửa hàng</h1>
+        <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
+          Cửa hàng
+        </h1>
 
-        <div className="flex flex-wrap gap-3 items-center">
-          {/* Ô tìm kiếm */}
-          <div className="relative w-64 lg:w-72">
+        <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+          <div className="relative w-full md:w-64">
             <input
               name="q"
               defaultValue={q}
@@ -177,8 +174,7 @@ export default async function ProductsPage({
 
           <input type="hidden" name="cat" value={cat} />
 
-          {/* Bộ lọc giá */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex gap-2 items-center flex-wrap">
             <select
               id="min"
               name="min"
@@ -209,82 +205,37 @@ export default async function ProductsPage({
               <option value="10000000">10.000.000 ₫</option>
             </select>
 
-            <button
-              type="submit"
-              className="rounded-full bg-blue-700 text-white px-5 py-2 font-semibold shadow hover:bg-blue-800 transition"
-            >
-              Lọc
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                className="rounded-full bg-blue-700 text-white px-4 py-2 font-semibold shadow hover:bg-blue-800 transition"
+              >
+                Lọc
+              </button>
 
-            <a
-              href={`/home${q ? `?q=${encodeURIComponent(q)}` : ""}${cat && cat !== "all"
-                ? `${q ? "&" : "?"}cat=${encodeURIComponent(cat)}`
-                : ""
+              <a
+                href={`/home${q ? `?q=${encodeURIComponent(q)}` : ""}${
+                  cat && cat !== "all"
+                    ? `${q ? "&" : "?"}cat=${encodeURIComponent(cat)}`
+                    : ""
                 }`}
-              className="ml-1 text-sm text-gray-600 hover:text-blue-700 transition"
-              aria-label="Xoá lọc giá"
-            >
-              Xoá
-            </a>
+                className="ml-1 text-sm text-gray-600 hover:text-blue-700 transition"
+                aria-label="Xoá lọc giá"
+              >
+                Xoá
+              </a>
+            </div>
           </div>
         </div>
       </form>
 
-      {/* 📱 Bộ lọc mobile */}
-      <details className="md:hidden mb-6 rounded-xl border bg-white shadow-sm overflow-hidden">
-        <summary className="flex items-center justify-between px-4 py-3 cursor-pointer select-none">
-          <span className="text-lg font-semibold text-gray-800">Bộ lọc</span>
-          <span className="text-sm text-gray-500">Chạm để mở</span>
-        </summary>
-        <div className="px-4 pb-4">
-          <form method="get" className="space-y-3">
-            <input type="hidden" name="cat" value={cat} />
-            <input
-              name="q"
-              defaultValue={q}
-              placeholder="Tìm kiếm sản phẩm..."
-              className="w-full rounded-lg border border-gray-300 px-3 py-2"
-            />
-            <div className="flex items-center gap-3">
-              <select
-                name="min"
-                defaultValue={min || ""}
-                className="flex-1 rounded-lg border px-3 py-2"
-              >
-                <option value="">Giá từ</option>
-                <option value="0">0 ₫</option>
-                <option value="100000">100.000 ₫</option>
-                <option value="200000">200.000 ₫</option>
-                <option value="500000">500.000 ₫</option>
-                <option value="1000000">1.000.000 ₫</option>
-              </select>
-              <select
-                name="max"
-                defaultValue={max || ""}
-                className="flex-1 rounded-lg border px-3 py-2"
-              >
-                <option value="">Đến</option>
-                <option value="200000">200.000 ₫</option>
-                <option value="500000">500.000 ₫</option>
-                <option value="1000000">1.000.000 ₫</option>
-                <option value="3000000">3.000.000 ₫</option>
-                <option value="10000000">10.000.000 ₫</option>
-              </select>
-            </div>
-            <button className="w-full rounded-lg bg-blue-700 text-white py-2 font-semibold hover:bg-blue-800 transition">
-              Áp dụng
-            </button>
-          </form>
-        </div>
-      </details>
-
-      {/* 🧭 Tabs Filter */}
+      {/* Tabs Filter */}
       <div className="mb-6 md:mb-8">
         <CategoryTabs active={cat} q={q} min={min} max={max} pathname="/home" />
       </div>
 
-      {/* 🛍 Grid Sản phẩm */}
-      <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 md:gap-7 mb-10">
+      {/* Product Grid: responsive columns + card adjustments */}
+      <ul className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 md:gap-7 mb-10">
         {pageItems.map((p) => {
           const { rating, reviews } = getRatingFor(p.id);
           const href = `/home/${p.id}`;
@@ -292,10 +243,10 @@ export default async function ProductsPage({
             <li key={p.id}>
               <article
                 className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white
-                         shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-transform"
+                         shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-transform h-full flex flex-col"
               >
-                {/* Ảnh */}
-                <div className="relative aspect-square bg-gradient-to-br from-slate-50 to-white">
+                {/* Ảnh (cover + responsive) */}
+                <div className="relative w-full aspect-square md:aspect-[4/3] bg-gradient-to-br from-slate-50 to-white overflow-hidden">
                   <img
                     src={productImageUrl(p) ?? "/placeholder.png"}
                     alt={p.name}
@@ -312,7 +263,7 @@ export default async function ProductsPage({
                 </div>
 
                 {/* Nội dung */}
-                <div className="p-3 sm:p-4">
+                <div className="p-3 sm:p-4 flex-1 flex flex-col">
                   <Link
                     href={href}
                     prefetch={false}
@@ -322,8 +273,7 @@ export default async function ProductsPage({
                     {p.name}
                   </Link>
 
-                  {/* Đánh giá */}
-                  <div className="mt-1 flex items-center gap-2 text-slate-500">
+                  <div className="mt-2 flex items-center gap-2 text-slate-500">
                     <StarRating value={rating} />
                     <span className="text-xs sm:text-sm">
                       {rating.toFixed(1)} • {formatInt(reviews)} đánh giá
@@ -332,13 +282,17 @@ export default async function ProductsPage({
 
                   <div className="mt-3 border-t border-slate-100" />
 
-                  <div className="mt-2 flex items-center justify-between">
+                  <div className="mt-3 flex items-center justify-between">
                     <span
                       className="inline-flex items-center rounded-xl px-2.5 py-1 text-[13px] font-semibold
                              bg-blue-50 text-blue-700 border border-blue-200/60"
                     >
                       {formatPriceVND(p.price)}
                     </span>
+
+                    <div className="text-sm text-gray-500 hidden sm:block">
+                      {p.stock} in stock
+                    </div>
                   </div>
                 </div>
               </article>
@@ -353,8 +307,8 @@ export default async function ProductsPage({
         )}
       </ul>
 
-      {/* 📄 Pagination */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-2 text-sm text-gray-600">
+      {/* Pagination: responsive wrap */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-2 text-sm text-gray-600">
         <p>
           Hiển thị{" "}
           <span className="font-medium">
@@ -362,17 +316,18 @@ export default async function ProductsPage({
           </span>{" "}
           / {total}
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Link
             aria-disabled={currentPage <= 1}
             href={{
               pathname: "/home",
               query: buildQuery({ p: Math.max(1, currentPage - 1) }),
             }}
-            className={`px-4 py-2 rounded-full border text-sm font-medium transition ${currentPage <= 1
-              ? "pointer-events-none opacity-50"
-              : "hover:bg-blue-50 hover:border-blue-400"
-              }`}
+            className={`px-4 py-2 rounded-full border text-sm font-medium transition ${
+              currentPage <= 1
+                ? "pointer-events-none opacity-50"
+                : "hover:bg-blue-50 hover:border-blue-400"
+            }`}
           >
             ← Trước
           </Link>
@@ -385,17 +340,18 @@ export default async function ProductsPage({
               pathname: "/home",
               query: buildQuery({ p: Math.min(totalPages, currentPage + 1) }),
             }}
-            className={`px-4 py-2 rounded-full border text-sm font-medium transition ${currentPage >= totalPages
-              ? "pointer-events-none opacity-50"
-              : "hover:bg-blue-50 hover:border-blue-400"
-              }`}
+            className={`px-4 py-2 rounded-full border text-sm font-medium transition ${
+              currentPage >= totalPages
+                ? "pointer-events-none opacity-50"
+                : "hover:bg-blue-50 hover:border-blue-400"
+            }`}
           >
             Tiếp →
           </Link>
         </div>
       </div>
 
-      {/* 📰 Blog / Content */}
+      {/* Blog / Content */}
       <section className="mt-12">
         <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 mb-4">
           Góc tư vấn • Chạy khỏe & mặc đẹp
@@ -438,7 +394,9 @@ export default async function ProductsPage({
                 <h3 className="font-semibold text-gray-900 group-hover:text-blue-700">
                   {a.title}
                 </h3>
-                <p className="text-sm text-gray-600 mt-1 line-clamp-2">{a.desc}</p>
+                <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                  {a.desc}
+                </p>
               </div>
             </Link>
           ))}
@@ -446,5 +404,4 @@ export default async function ProductsPage({
       </section>
     </main>
   );
-
 }
