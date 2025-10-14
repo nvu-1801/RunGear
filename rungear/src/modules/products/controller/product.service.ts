@@ -1,7 +1,10 @@
 import "server-only";
 import { supabaseServer } from "@/libs/db/supabase/supabase-server";
 import { normalizeImages, type Product } from "../model/product-public";
-import { getCategoryIdBySlug, type CatKey } from "@/modules/categories/category.service";
+import {
+  getCategoryIdBySlug,
+  type CatKey,
+} from "@/modules/categories/category.service";
 
 /** Cho phép UI truyền 'all' ngoài 3 slug thực tế */
 type CatKeyAll = "all" | CatKey;
@@ -40,12 +43,18 @@ export async function createProduct(cmd: {
 export async function listProducts({
   q = "",
   cat = "all",
-}: { q?: string; cat?: CatKeyAll } = {}) {
+}: { q?: string; cat?: string } = {}) {
   const sb = await supabaseServer();
 
-  // chỉ nhận 1 trong 4 key; sai -> "all"
-  const validCatsAll: CatKeyAll[] = ["all", "ao", "quan", "giay"];
-  const catSafe: CatKeyAll = validCatsAll.includes(cat) ? cat : "all";
+  // Normalize incoming category slugs (support "quan-ao" from UI -> "quan" in DB)
+  const slugMap: Record<string, CatKey> = {
+    giay: "giay",
+    "quan-ao": "quan",
+    quan: "quan",
+    ao: "ao",
+  };
+
+  const catSafe: "all" | CatKey = cat === "all" ? "all" : slugMap[cat] ?? "all";
 
   // lấy id category theo slug khi cần
   let catId: string | null = null;
@@ -63,7 +72,9 @@ export async function listProducts({
 
   let qy = sb
     .from("products")
-    .select("id,name,slug,price,stock,description,images,created_at,categories_id,status")
+    .select(
+      "id,name,slug,price,stock,description,images,created_at,categories_id,status"
+    )
     .order("created_at", { ascending: false })
     .eq("is_deleted", false); // lọc soft-deleted
 
@@ -80,7 +91,7 @@ export async function listProducts({
     slug: r.slug,
     price: r.price,
     status: r.status,
-    stock: r.stock, 
+    stock: r.stock,
     description: r.description,
     images: normalizeImages(r.images),
     categories_id: r.categories_id,
