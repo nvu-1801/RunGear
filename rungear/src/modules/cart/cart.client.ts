@@ -2,13 +2,14 @@
 "use client";
 import { supabaseBrowser } from "@/libs/db/supabase/supabase-client";
 
-function throwIf(error: any, where: string) {
+function throwIf(error: unknown, where: string) {
   if (!error) return;
-  const msg =
-    [error.code, error.message].filter(Boolean).join(" ") || "Unknown";
+  const e = error as { code?: unknown; message?: unknown; details?: unknown };
+  const msg = [e.code, e.message].filter(Boolean).join(" ") || "Unknown";
   const err = new Error(`${where}: ${msg}`);
-  (err as any).code = error.code;
-  (err as any).details = error.details;
+  // attach metadata safely (cast to unknown -> record)
+  (err as unknown as Record<string, unknown>)["code"] = e.code;
+  (err as unknown as Record<string, unknown>)["details"] = e.details;
   throw err;
 }
 
@@ -35,7 +36,7 @@ async function ensureOpenCart(sb = supabaseBrowser()) {
     .single();
   throwIf(e1, "carts.insert");
 
-  return data!.id as string;
+  return String((data as { id?: unknown } | null)?.id);
 }
 
 export async function list() {
@@ -68,57 +69,32 @@ export async function list() {
     .order("created_at", { ascending: false }); // 👈 thêm order
   throwIf(e1, "cart_items.select");
 
-  return (data ?? []).map((row: any) => ({
-    product_id: row.product_id,
-    qty: row.qty,
-    price_at_time: Number(row.price_at_time ?? 0),
-    name: row.product?.name ?? "",
-    slug: row.product?.slug ?? "",
-    image: Array.isArray(row.product?.images)
-      ? row.product.images[0] ?? null
-      : row.product?.images ?? null,
-  }));
+  return (data ?? []).map((row: unknown) => {
+    const r = row as Record<string, unknown>;
+    const product = r["product"] as Record<string, unknown> | null | undefined;
+    const images = product?.["images"];
+    const image = Array.isArray(images)
+      ? (images[0] as string | null) ?? null
+      : typeof images === "string"
+      ? images
+      : null;
+
+    return {
+      product_id: String(r["product_id"] ?? ""),
+      qty: Number(r["qty"] ?? 0),
+      price_at_time: Number(r["price_at_time"] ?? 0),
+      name:
+        typeof product?.["name"] === "string"
+          ? (product!["name"] as string)
+          : "",
+      slug:
+        typeof product?.["slug"] === "string"
+          ? (product!["slug"] as string)
+          : "",
+      image,
+    };
+  });
 }
-
-// export async function add(productId: string, qty = 1) {
-//   const sb = supabaseBrowser();
-//   const cartId = await ensureOpenCart(sb);
-
-//   const { data: pr, error: e0 } = await sb
-//     .from("products")
-//     .select("price")
-//     .eq("id", productId)
-//     .single();
-//   throwIf(e0, "products.select");
-
-//   const price = Number(pr?.price ?? 0);
-
-//   const { data: exist, error: e1 } = await sb
-//     .from("cart_items")
-//     .select("id, qty")
-//     .eq("cart_id", cartId)
-//     .eq("product_id", productId)
-//     .maybeSingle();
-//   throwIf(e1, "cart_items.select_exist");
-
-//   if (exist?.id) {
-//     const { error: e2 } = await sb
-//       .from("cart_items")
-//       .update({ qty: Math.max(1, (exist.qty ?? 1) + qty) })
-//       .eq("id", exist.id);
-//     throwIf(e2, "cart_items.update");
-//   } else {
-//     const { error: e3 } = await sb
-//       .from("cart_items")
-//       .insert({
-//         cart_id: cartId,
-//         product_id: productId,
-//         qty,
-//         price_at_time: price,
-//       });
-//     throwIf(e3, "cart_items.insert");
-//   }
-// }
 
 export async function add(productId: string, qty = 1) {
   const sb = supabaseBrowser();
@@ -130,7 +106,6 @@ export async function add(productId: string, qty = 1) {
   });
   throwIf(error, "rpc.add_to_cart");
 }
-
 
 export async function setQty(productId: string, qty: number) {
   const sb = supabaseBrowser();

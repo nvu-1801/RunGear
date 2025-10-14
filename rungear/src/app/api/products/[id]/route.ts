@@ -1,86 +1,74 @@
-import { NextResponse } from "next/server";
-import { listProducts } from "@/modules/products/controller/product.service"; // Đảm bảo đường dẫn tới service của bạn
+import { NextResponse, type NextRequest } from "next/server";
 import { supabaseServer } from "@/libs/db/supabase/supabase-server";
-
+import { getProductById } from "@/modules/products/controller/product.service";
 
 // API GET: Lấy thông tin sản phẩm theo ID
-export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const { id } = await ctx.params; // ⬅️ bắt buộc await ở Next mới
+export async function GET(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  const { id } = await ctx.params;
+  try {
+    const product = await getProductById(id);
+    if (!product)
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json(product);
+  } catch (err: unknown) {
+    console.error("/api/products/[id] GET", err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}
 
+// API PUT: Cập nhật thông tin sản phẩm theo ID
+export async function PUT(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  const { id } = await ctx.params;
   try {
     const body = await req.json();
-    const { name, price, stock, images, status, categories_id } = body;
-
-    // Build payload chỉ với cột TỒN TẠI trong bảng
-    const payload: Record<string, any> = {};
-    if (name !== undefined) payload.name = name;
-    if (price !== undefined) payload.price = Number(price);
-    if (stock !== undefined) payload.stock = Number(stock);
-    if (status !== undefined) payload.status = status;
-    if (categories_id !== undefined) payload.categories_id = categories_id;
-    if (images !== undefined) payload.images = images ?? null; // ⬅️ dùng đúng tên cột
-    console.log("PUT /products/:id", { id, payload });
-
-
     const sb = await supabaseServer();
     const { data, error } = await sb
       .from("products")
-      .update(payload)
-      .eq("id", id)
-      .select("*")
-      .maybeSingle();
-
-    if (error) {
-      // log để debug nhanh tại server
-      console.error("PUT /api/products/:id error:", { id, payload, error });
-      return NextResponse.json({ message: error.message }, { status: 400 });
-    }
-    if (!data) return NextResponse.json({ message: "Product not found" }, { status: 404 });
-
-    return NextResponse.json(data, { status: 200 });
-  } catch (e: any) {
-    console.error("PUT /api/products/:id exception:", e);
-    return NextResponse.json({ message: e?.message ?? "Server error" }, { status: 500 });
-  }
-}
-// API DeLETE: Xoá sản phẩm theo ID (Soft Delete)
-export async function DELETE(
-  req: Request,
-  context: { params: Promise<{ id: string }> }
-) {
-  try {
-    console.log("DELETE /api/products/:id called");
-    const { id } = await context.params;
-
-    if (!id) {
-      return NextResponse.json({ message: "Missing product id" }, { status: 400 });
-    }
-
-    const supabase = await supabaseServer();
-    
-    // Soft delete: đánh dấu is_deleted = true thay vì xóa thật
-    const { data, error } = await supabase
-      .from("products")
-      .update({ is_deleted: true })
+      .update(body)
       .eq("id", id)
       .select()
       .single();
-
-    if (error) {
-      console.error("DELETE /api/products/:id error:", { id, error });
-      return NextResponse.json({ message: error.message }, { status: 400 });
-    }
-
-    if (!data) {
-      return NextResponse.json({ message: "Product not found" }, { status: 404 });
-    }
-
-    return NextResponse.json(data, { status: 200 });
-  } catch (e: any) {
-    console.error("DELETE /api/products/:id exception:", e);
+    if (error) throw error;
+    return NextResponse.json(data);
+  } catch (err: unknown) {
+    console.error("/api/products/[id] PUT", err);
+    const msg =
+      typeof err === "object" && err !== null && "message" in err
+        ? String((err as { message?: unknown }).message ?? String(err))
+        : String(err);
     return NextResponse.json(
-      { message: e?.message ?? "Server error" },
-      { status: 500 }
+      { error: msg ?? "Update failed" },
+      { status: 400 }
+    );
+  }
+}
+
+// API DELETE: Xoá sản phẩm theo ID (Soft Delete)
+export async function DELETE(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  const { id } = await ctx.params;
+  try {
+    const sb = await supabaseServer();
+    const { error } = await sb.from("products").delete().eq("id", id);
+    if (error) throw error;
+    return NextResponse.json({ success: true });
+  } catch (err: unknown) {
+    console.error("/api/products/[id] DELETE", err);
+    const msg =
+      typeof err === "object" && err !== null && "message" in err
+        ? String((err as { message?: unknown }).message ?? String(err))
+        : String(err);
+    return NextResponse.json(
+      { error: msg ?? "Delete failed" },
+      { status: 400 }
     );
   }
 }

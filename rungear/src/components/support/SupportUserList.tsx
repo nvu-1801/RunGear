@@ -45,9 +45,16 @@ export default function SupportUserList({
         .from("profiles")
         .select("id, email")
         .in("id", ids);
+
       if (data) {
-        const map: Record<string, any> = {};
-        data.forEach((u) => (map[u.id] = u));
+        const map: Record<string, UserLite | null> = {};
+        data.forEach((u: unknown) => {
+          const row = u as Record<string, unknown>;
+          if (!row || row.id == null) return;
+          const id = String(row.id);
+          const email = typeof row.email === "string" ? row.email : null;
+          map[id] = { email };
+        });
         setUsers(map);
       }
     }
@@ -60,7 +67,7 @@ export default function SupportUserList({
     return sessions.filter((s) => {
       const email = s.user_id ? users[s.user_id]?.email ?? "" : "";
       return (
-        email.toLowerCase().includes(keyword) ||
+        String(email).toLowerCase().includes(keyword) ||
         s.session_id.toLowerCase().includes(keyword)
       );
     });
