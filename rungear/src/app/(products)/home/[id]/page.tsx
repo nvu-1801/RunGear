@@ -7,9 +7,9 @@ import type { Product } from "@/modules/products/model/product-public";
 export default async function ProductDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const id = params.id;
+  const { id } = await params;
 
   try {
     const raw = await getProductById(id);
