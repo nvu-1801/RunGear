@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { supabaseBrowser } from "@/libs/db/supabase/supabase-client";
+import { supabaseBrowser } from "@/libs/supabase/supabase-client";
 
 type Stats = {
   sold_this_month: number;

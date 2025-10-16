@@ -1,6 +1,6 @@
 // modules/cart/cart.client.ts
 "use client";
-import { supabaseBrowser } from "@/libs/db/supabase/supabase-client";
+import { supabaseBrowser } from "@/libs/supabase/supabase-client";
 
 function throwIf(error: unknown, where: string) {
   if (!error) return;

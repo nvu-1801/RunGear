@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { supabaseBrowser } from "../../libs/db/supabase/supabase-client";
+import { supabaseBrowser } from "@/libs/supabase/supabase-client";
 
 type Props = {
   sessions: { session_id: string; user_id: string | null }[];
@@ -36,29 +36,30 @@ export default function SupportUserList({
   const [users, setUsers] = useState<Record<string, UserLite | null>>({});
   const [q, setQ] = useState("");
 
-  // Lấy email của từng user_id (nếu có)
   useEffect(() => {
-    async function load() {
-      const ids = sessions.map((s) => s.user_id).filter(Boolean) as string[];
+    (async () => {
+      const ids = Array.from(
+        new Set(sessions.map((s) => s.user_id).filter(Boolean) as string[])
+      );
       if (ids.length === 0) return;
-      const { data } = await sb
+
+      const { data, error } = await sb
         .from("profiles")
         .select("id, email")
         .in("id", ids);
 
+      if (error) {
+        console.error("load profiles error:", error);
+        return;
+      }
       if (data) {
         const map: Record<string, UserLite | null> = {};
-        data.forEach((u: unknown) => {
-          const row = u as Record<string, unknown>;
-          if (!row || row.id == null) return;
-          const id = String(row.id);
-          const email = typeof row.email === "string" ? row.email : null;
-          map[id] = { email };
-        });
-        setUsers(map);
+        for (const row of data as { id: string; email: string | null }[]) {
+          map[row.id] = { email: row.email };
+        }
+        setUsers((prev) => ({ ...prev, ...map }));
       }
-    }
-    load();
+    })();
   }, [sessions, sb]);
 
   const filtered = useMemo(() => {
@@ -67,7 +68,7 @@ export default function SupportUserList({
     return sessions.filter((s) => {
       const email = s.user_id ? users[s.user_id]?.email ?? "" : "";
       return (
-        String(email).toLowerCase().includes(keyword) ||
+        email.toLowerCase().includes(keyword) ||
         s.session_id.toLowerCase().includes(keyword)
       );
     });
@@ -101,7 +102,8 @@ export default function SupportUserList({
       <ul className="flex-1 overflow-y-auto divide-y divide-gray-100 bg-gradient-to-b from-gray-50/60 to-white">
         {filtered.map((s) => {
           const email = s.user_id
-            ? users[s.user_id]?.email
+            ? users[s.user_id]?.email ??
+              `Khách vãng lai (${s.session_id.slice(0, 6)}…)`
             : `Khách vãng lai (${s.session_id.slice(0, 6)}…)`;
           const active = selectedSession === s.session_id;
           const grad = pickGradient(s.session_id);
