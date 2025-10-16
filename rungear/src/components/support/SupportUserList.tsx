@@ -27,6 +27,14 @@ function pickGradient(key: string) {
   return COLORS[idx];
 }
 
+function isValidUserId(v: unknown) {
+  if (typeof v !== "string") return false;
+  const s = v.trim();
+  if (s.length === 0) return false;
+  // allow typical uuid / supabase id chars
+  return /^[A-Za-z0-9\-_:.]+$/.test(s);
+}
+
 export default function SupportUserList({
   sessions,
   selectedSession,
@@ -37,29 +45,45 @@ export default function SupportUserList({
   const [q, setQ] = useState("");
 
   useEffect(() => {
+    let mounted = true;
     (async () => {
-      const ids = Array.from(
-        new Set(sessions.map((s) => s.user_id).filter(Boolean) as string[])
-      );
-      if (ids.length === 0) return;
+      try {
+        if (!sb) return;
+        // collect unique, valid user ids
+        const ids = Array.from(
+          new Set(
+            sessions
+              .map((s) => s.user_id)
+              .filter((id): id is string => isValidUserId(id))
+          )
+        );
+        if (ids.length === 0) return;
 
-      const { data, error } = await sb
-        .from("profiles")
-        .select("id, email")
-        .in("id", ids);
+        const { data, error } = await sb
+          .from("profiles")
+          .select("id, email")
+          .in("id", ids);
 
-      if (error) {
-        console.error("load profiles error:", error);
-        return;
-      }
-      if (data) {
-        const map: Record<string, UserLite | null> = {};
-        for (const row of data as { id: string; email: string | null }[]) {
-          map[row.id] = { email: row.email };
+        if (!mounted) return;
+        if (error) {
+          console.error("load profiles error:", error);
+          return;
         }
-        setUsers((prev) => ({ ...prev, ...map }));
+        if (data) {
+          const map: Record<string, UserLite | null> = {};
+          for (const row of data as { id: string; email: string | null }[]) {
+            map[row.id] = { email: row.email };
+          }
+          setUsers((prev) => ({ ...prev, ...map }));
+        }
+      } catch (e) {
+        // safe ignore but keep console for unexpected errors
+        console.error("SupportUserList load profiles failed:", e);
       }
     })();
+    return () => {
+      mounted = false;
+    };
   }, [sessions, sb]);
 
   const filtered = useMemo(() => {
@@ -67,9 +91,10 @@ export default function SupportUserList({
     if (!keyword) return sessions;
     return sessions.filter((s) => {
       const email = s.user_id ? users[s.user_id]?.email ?? "" : "";
+      const sid = String(s.session_id ?? "");
       return (
         email.toLowerCase().includes(keyword) ||
-        s.session_id.toLowerCase().includes(keyword)
+        sid.toLowerCase().includes(keyword)
       );
     });
   }, [q, sessions, users]);
@@ -101,18 +126,18 @@ export default function SupportUserList({
       {/* List */}
       <ul className="flex-1 overflow-y-auto divide-y divide-gray-100 bg-gradient-to-b from-gray-50/60 to-white">
         {filtered.map((s) => {
+          const sid = String(s.session_id ?? "");
           const email = s.user_id
-            ? users[s.user_id]?.email ??
-              `Khách vãng lai (${s.session_id.slice(0, 6)}…)`
-            : `Khách vãng lai (${s.session_id.slice(0, 6)}…)`;
+            ? users[s.user_id]?.email ?? `Khách vãng lai (${sid.slice(0, 6)}…)`
+            : `Khách vãng lai (${sid.slice(0, 6)}…)`;
           const active = selectedSession === s.session_id;
-          const grad = pickGradient(s.session_id);
+          const grad = pickGradient(sid);
           const initials = (email || "G").slice(0, 1).toUpperCase();
 
           return (
             <li
-              key={s.session_id}
-              onClick={() => onSelect(s.session_id)}
+              key={sid}
+              onClick={() => onSelect(sid)}
               className={`group px-4 py-3 cursor-pointer transition
                           ${active ? "bg-indigo-50/80" : "hover:bg-gray-50"}`}
             >
@@ -143,7 +168,7 @@ export default function SupportUserList({
                     </span>
                   </div>
                   <div className="text-[11px] text-gray-500 truncate">
-                    {s.session_id}
+                    {sid}
                   </div>
                 </div>
 

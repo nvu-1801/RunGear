@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { supabaseBrowser } from "@/libs/supabase/supabase-client";
 import { RealtimeChat } from "../chat/realtime-chat";
 
@@ -24,6 +24,10 @@ export default function SupportChatPanel({ sessionId }: { sessionId: string }) {
   const sb = supabaseBrowser();
   const [initial, setInitial] = useState<ChatMessage[]>([]);
   const roomName = `support:${sessionId}`;
+
+  // dedupe / prevent concurrent sends
+  const lastSentRef = useRef<{ sig: string; ts: number } | null>(null);
+  const sendingRef = useRef(false);
 
   // Load lịch sử từ DB và map -> ChatMessage
   useEffect(() => {
@@ -55,29 +59,51 @@ export default function SupportChatPanel({ sessionId }: { sessionId: string }) {
   }, [sb, sessionId]);
 
   // Khi admin gửi từ UI → ghi vào DB (role=admin).
-  async function handleMessage(next: ChatMessage[]) {
-    const last = next[next.length - 1];
-    if (!last) return;
+  const handleMessage = useCallback(
+    async (next: ChatMessage[]) => {
+      const last = next[next.length - 1];
+      if (!last) return;
 
-    const {
-      data: { user },
-      error: authErr,
-    } = await sb.auth.getUser();
+      const sig = `${last.content}::${sessionId}`;
+      const now = Date.now();
 
-    if (authErr || !user) {
-      console.error("Admin not authenticated");
-      return;
-    }
+      // ignore identical send within 3s
+      const lastEntry = lastSentRef.current;
+      if (lastEntry && lastEntry.sig === sig && now - lastEntry.ts < 3000) {
+        return;
+      }
 
-    const { error } = await sb.from("support_messages").insert({
-      session_id: sessionId,
-      user_id: user.id,
-      role: "admin",
-      text: last.content,
-    });
-    if (error) console.error("Insert failed:", error.message ?? error);
-    // Không set state tại đây — RealtimeChat sẽ broadcast ngay và UI tự cập nhật
-  }
+      if (sendingRef.current) return;
+      sendingRef.current = true;
+      try {
+        const { data, error: authErr } = await sb.auth.getUser();
+        const user = (data as any)?.user ?? null;
+
+        if (authErr || !user) {
+          console.error("Admin not authenticated");
+          return;
+        }
+
+        const { error } = await sb.from("support_messages").insert({
+          session_id: sessionId,
+          user_id: user.id,
+          role: "admin",
+          text: last.content,
+        });
+
+        if (error) {
+          console.error("Insert failed:", error.message ?? error);
+        } else {
+          lastSentRef.current = { sig, ts: Date.now() };
+        }
+      } catch (e) {
+        console.error("handleMessage error", e);
+      } finally {
+        sendingRef.current = false;
+      }
+    },
+    [sb, sessionId]
+  );
 
   return (
     <div className="flex h-full flex-col">

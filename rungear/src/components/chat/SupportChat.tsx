@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { supabaseBrowser } from "@/libs/supabase/supabase-client";
 import { RealtimeChat } from "./realtime-chat";
 
@@ -59,6 +59,10 @@ export default function SupportChat() {
   const [initial, setInitial] = useState<ChatMessage[]>([]);
   const [username, setUsername] = useState<string>("Guest");
 
+  // prevent duplicate sends: remember last send signature and timestamp
+  const lastSentRef = useRef<{ sig: string; ts: number } | null>(null);
+  const sendingRef = useRef(false);
+
   // Lấy tên hiển thị (nếu user đã đăng nhập có email)
   useEffect(() => {
     (async () => {
@@ -109,27 +113,49 @@ export default function SupportChat() {
   }, [sb, sid]);
 
   // Gửi từ UI → ghi DB role=user
-  async function handleMessage(next: ChatMessage[]) {
-    if (!sid) return;
-    const last = next[next.length - 1];
-    if (!last) return;
+  const handleMessage = useCallback(
+    async (next: ChatMessage[]) => {
+      if (!sid) return;
+      const last = next[next.length - 1];
+      if (!last) return;
 
-    try {
-      const {
-        data: { user },
-      } = await sb.auth.getUser();
+      const sig = `${last.content}::${sid}`;
+      const now = Date.now();
 
-      const { error } = await sb.from("support_messages").insert({
-        session_id: sid,
-        user_id: user?.id ?? null,
-        role: "user",
-        text: last.content,
-      });
-      if (error) console.error("Insert failed:", error.message ?? error);
-    } catch (e: unknown) {
-      console.error("handleMessage error:", e);
-    }
-  }
+      // simple dedupe: ignore identical send within 3s
+      const lastEntry = lastSentRef.current;
+      if (lastEntry && lastEntry.sig === sig && now - lastEntry.ts < 3000) {
+        return;
+      }
+
+      if (sendingRef.current) return; // avoid concurrent sends
+      sendingRef.current = true;
+      try {
+        const {
+          data: { user },
+        } = await sb.auth.getUser();
+
+        const { error } = await sb.from("support_messages").insert({
+          session_id: sid,
+          user_id: user?.id ?? null,
+          role: "user",
+          text: last.content,
+        });
+
+        if (error) {
+          console.error("Insert failed:", error.message ?? error);
+        } else {
+          // record successful send
+          lastSentRef.current = { sig, ts: Date.now() };
+        }
+      } catch (e: unknown) {
+        console.error("handleMessage error:", e);
+      } finally {
+        sendingRef.current = false;
+      }
+    },
+    [sb, sid]
+  );
 
   if (!roomName) return null;
 
