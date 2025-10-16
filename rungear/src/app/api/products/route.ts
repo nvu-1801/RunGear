@@ -10,7 +10,24 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const q = searchParams.get("q") || "";
-    const cat = (searchParams.get("cat") || "all") as string;
+
+    // validate & normalize `cat`
+    const rawCat = (searchParams.get("cat") || "all").trim();
+    let cat: string | undefined;
+    if (rawCat && rawCat !== "all") {
+      // decode and allow simple slugs only (lowercase letters, numbers, hyphen, underscore)
+      const decoded = decodeURIComponent(rawCat);
+      if (!/^[a-z0-9\-_]+$/.test(decoded)) {
+        return NextResponse.json(
+          { error: "INVALID_CATEGORY" },
+          { status: 400 }
+        );
+      }
+      cat = decoded;
+    } else {
+      cat = undefined; // means "all"
+    }
+
     const products = await listProducts({ q, cat });
     return NextResponse.json(products); // Trả về dữ liệu sản phẩm dưới dạng JSON
   } catch (err: unknown) {
