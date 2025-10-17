@@ -101,6 +101,12 @@ export default async function ProductsGroupLayout({
                               Manage Products
                             </Link>
                             <Link
+                              href="/admin/discount-codes"
+                              className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-blue-50"
+                            >
+                              Mã giảm giá
+                            </Link>
+                             <Link
                               href="/admin/support"
                               className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-blue-50"
                             >
