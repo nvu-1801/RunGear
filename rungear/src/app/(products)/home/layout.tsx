@@ -12,14 +12,14 @@ export default async function ProtectedLayout({
 }: {
   children: ReactNode;
 }) {
-  const supabase = await supabaseServer();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  // const supabase = await supabaseServer();
+  // const {
+  //   data: { session },
+  // } = await supabase.auth.getSession();
 
-  if (!session) {
-    redirect("/auth/signin");
-  }
+  // if (!session) {
+  //   redirect("/auth/signin");
+  // }
 
   // (tuỳ chọn) có thể fetch user profile ở đây rồi wrap vào context/provider
 
