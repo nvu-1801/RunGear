@@ -3,12 +3,12 @@ import { supabaseServer } from "@/libs/supabase/supabase-server";
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await supabaseServer();
 
-    const id = params.id;
+    const { id } = await params; // ✅ Await params
     const body = await req.json();
     const {
       code,
@@ -98,12 +98,12 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-     const supabase = await supabaseServer();
+    const supabase = await supabaseServer();
 
-    const id = params.id;
+    const { id } = await params; // ✅ Await params
 
     console.log("DELETE id:", id);
 

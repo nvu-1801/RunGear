@@ -3,7 +3,7 @@ import { supabaseServer } from "@/libs/supabase/supabase-server";
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await supabaseServer();
@@ -21,7 +21,7 @@ export async function PUT(
       );
     }
 
-    const id = params.id;
+    const { id } = await params; // ✅ Await params
     const body = await req.json();
     const { status, paid_at } = body;
 
@@ -33,7 +33,13 @@ export async function PUT(
       );
     }
 
-    const validStatuses = ["PENDING", "PROCESSING", "PAID", "CANCELLED", "FAILED"];
+    const validStatuses = [
+      "PENDING",
+      "PROCESSING",
+      "PAID",
+      "CANCELLED",
+      "FAILED",
+    ];
     if (!validStatuses.includes(status)) {
       return NextResponse.json(
         { success: false, error: "Trạng thái không hợp lệ" },
@@ -80,7 +86,7 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await supabaseServer();
@@ -98,7 +104,7 @@ export async function DELETE(
       );
     }
 
-    const id = params.id;
+    const { id } = await params; // ✅ Await params
 
     console.log("DELETE order id:", id);
 
