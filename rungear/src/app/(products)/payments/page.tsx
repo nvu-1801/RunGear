@@ -112,7 +112,7 @@ export default function PaymentsPage() {
               <OrderSummary
                 items={items}
                 subtotal={subtotal}
-                shippingFee={shippingFee}
+                // shippingFee={shippingFee}
                 discount={discount}
                 total={total}
                 coupon={coupon}
