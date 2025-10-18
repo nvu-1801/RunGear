@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { supabaseServer } from "@/libs/db/supabase/supabase-server";
+import { supabaseServer } from "@/libs/supabase/supabase-server";
 import SignOutButton from "@/components/auth/SignOutButton";
 import CartButton from "@/components/cart/CartButton";
 import Footer from "@/components/common/Footer";
@@ -48,7 +48,11 @@ export default async function ProductsGroupLayout({
             <div className="hidden md:flex items-center justify-center gap-8 lg:gap-10 text-sm font-medium text-gray-700">
               {/* USER DROPDOWN */}
               <div className="relative">
-                <input type="checkbox" id="user-toggle" className="peer hidden" />
+                <input
+                  type="checkbox"
+                  id="user-toggle"
+                  className="peer hidden"
+                />
 
                 <label
                   htmlFor="user-toggle"
@@ -96,6 +100,18 @@ export default async function ProductsGroupLayout({
                             >
                               Manage Products
                             </Link>
+                            <Link
+                              href="/admin/discount-codes"
+                              className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-blue-50"
+                            >
+                              Mã giảm giá
+                            </Link>
+                             <Link
+                              href="/admin/support"
+                              className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-blue-50"
+                            >
+                              Support Chat
+                            </Link>
                           </div>
                         </div>
                       )}
@@ -132,7 +148,11 @@ export default async function ProductsGroupLayout({
 
               {/* SUPPORT DROPDOWN */}
               <div className="relative">
-                <input type="checkbox" id="support-toggle" className="peer hidden" />
+                <input
+                  type="checkbox"
+                  id="support-toggle"
+                  className="peer hidden"
+                />
                 <label
                   htmlFor="support-toggle"
                   className="flex flex-col items-center cursor-pointer hover:text-blue-600 transition select-none"
@@ -207,7 +227,11 @@ export default async function ProductsGroupLayout({
         </div>
 
         {/* MOBILE MENU */}
-        <input type="checkbox" id="mobile-menu-toggle" className="peer hidden" />
+        <input
+          type="checkbox"
+          id="mobile-menu-toggle"
+          className="peer hidden"
+        />
         <div
           className="
           md:hidden 
@@ -222,10 +246,16 @@ export default async function ProductsGroupLayout({
                 {/* ADMIN */}
                 {isAdmin ? (
                   <>
-                    <Link href="/admin/dashboard" className="py-2 hover:text-blue-600">
+                    <Link
+                      href="/admin/dashboard"
+                      className="py-2 hover:text-blue-600"
+                    >
                       Dashboard
                     </Link>
-                    <Link href="/admin/products" className="py-2 hover:text-blue-600">
+                    <Link
+                      href="/admin/products"
+                      className="py-2 hover:text-blue-600"
+                    >
                       Manage Products
                     </Link>
                     <hr className="my-2 border-gray-200" />

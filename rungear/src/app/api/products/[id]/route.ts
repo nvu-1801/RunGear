@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { supabaseServer } from "@/libs/db/supabase/supabase-server";
+import { supabaseServer } from "@/libs/supabase/supabase-server";
 import { getProductById } from "@/modules/products/controller/product.service";
 
 // API GET: Lấy thông tin sản phẩm theo ID

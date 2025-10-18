@@ -7,20 +7,46 @@ import {
 } from "@/modules/categories/category.service";
 
 /** Cho phép UI truyền 'all' ngoài 3 slug thực tế */
-type CatKeyAll = "all" | CatKey;
 
-/** Tạo sản phẩm theo slug category chuẩn (ao|quan|giay) */
+/** Tạo sản phẩm theo slug category chuẩn (ao|quan|giay) hoặc categories_id trực tiếp */
 export async function createProduct(cmd: {
   name: string;
   price: number;
   slug: string;
   description?: string;
-  images?: string[];
-  categorySlug: CatKey; // <- chỉ chấp nhận 'ao' | 'quan' | 'giay'
+  images?: string[] | string;
+  // accept either categorySlug OR categories_id (UUID)
+  categorySlug?: CatKey;
+  categories_id?: string;
 }) {
   const sb = await supabaseServer();
-  const catId = await getCategoryIdBySlug(sb, cmd.categorySlug);
-  if (!catId) throw new Error("INVALID_CATEGORY");
+
+  // resolve category id: prefer explicit categories_id if provided
+  let catId: string | null = null;
+  if (cmd.categories_id) {
+    // verify category exists
+    const { data: c, error: e } = await sb
+      .from("categories")
+      .select("id")
+      .eq("id", cmd.categories_id)
+      .maybeSingle();
+    if (e) throw e;
+    if (!c?.id) throw new Error("INVALID_CATEGORY");
+    catId = c.id;
+  } else if (cmd.categorySlug) {
+    const resolved = await getCategoryIdBySlug(sb, cmd.categorySlug);
+    if (!resolved) throw new Error("INVALID_CATEGORY");
+    catId = resolved;
+  } else {
+    // no category provided
+    throw new Error("INVALID_CATEGORY");
+  }
+
+  const imagesArr = Array.isArray(cmd.images)
+    ? cmd.images
+    : typeof cmd.images === "string"
+    ? [cmd.images]
+    : [];
 
   const { data, error } = await sb
     .from("products")
@@ -29,7 +55,7 @@ export async function createProduct(cmd: {
       price: cmd.price,
       slug: cmd.slug,
       description: cmd.description ?? null,
-      images: cmd.images ?? [],
+      images: imagesArr,
       categories_id: catId,
     })
     .select("id, slug")

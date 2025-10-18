@@ -10,7 +10,7 @@ import {
 } from "react";
 import * as CartAPI from "@/modules/cart/cart.client";
 import { safeGetUser, isTransientNetworkError } from "@/utils/auth-safe";
-import { supabaseBrowser } from "@/libs/db/supabase/supabase-client";
+import { supabaseBrowser } from "@/libs/supabase/supabase-client";
 
 export type CartItem = {
   id: string; // product id

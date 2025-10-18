@@ -4,10 +4,12 @@ import { getProductById } from "@/modules/products/controller/product.service";
 import ProductDetailClient from "./product-detail.client";
 import type { Product } from "@/modules/products/model/product-public";
 
-type Props = { params: { id: string } };
-
-export default async function ProductDetailPage({ params }: Props) {
-  const { id } = params;
+export default async function ProductDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
 
   try {
     const raw = await getProductById(id);
