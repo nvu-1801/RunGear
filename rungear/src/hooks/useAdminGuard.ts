@@ -3,14 +3,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabaseBrowser } from "@/libs/supabase/supabase-client";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 type AdminAuthError = { code: string; message?: string } | null;
+
 type Options = {
-  supabaseClient?: unknown;
+  supabaseClient?: SupabaseClient;
   redirectTo?: string;
   next?: string;
   onFail?: (error: AdminAuthError) => void;
 };
+
 type UserInfo = { id: string; email?: string | null } | null;
+
 type UseAdminGuardResult = {
   ready: boolean;
   error: AdminAuthError;
@@ -27,7 +32,7 @@ export function useAdminGuard({
   const [error, setError] = useState<AdminAuthError>(null);
   const [user, setUser] = useState<UserInfo>(null);
 
-  const calledRef = useRef(false); // prevent repeated runs
+  const calledRef = useRef(false);
   const onFailRef = useRef(onFail);
   onFailRef.current = onFail;
 
@@ -46,7 +51,7 @@ export function useAdminGuard({
 
     (async () => {
       try {
-        const sb = (supabaseClient as any) ?? supabaseBrowser();
+        const sb = supabaseClient ?? supabaseBrowser();
 
         if (!sb) {
           const noClientErr = {
@@ -72,10 +77,51 @@ export function useAdminGuard({
           .getSession()
           .catch((e: unknown) => ({ error: e }));
 
-        const u =
-          (userRes?.data as any)?.user ??
-          (sessionRes?.data as any)?.session?.user ??
-          null;
+        // Type guard for user from auth responses
+        let u: { id: string; email?: string | null } | null = null;
+
+        if (
+          userRes &&
+          typeof userRes === "object" &&
+          "data" in userRes &&
+          userRes.data &&
+          typeof userRes.data === "object" &&
+          "user" in userRes.data &&
+          userRes.data.user &&
+          typeof userRes.data.user === "object"
+        ) {
+          const userData = userRes.data.user as {
+            id?: string;
+            email?: string | null;
+          };
+          if (userData.id) {
+            u = { id: userData.id, email: userData.email ?? null };
+          }
+        }
+
+        if (
+          !u &&
+          sessionRes &&
+          typeof sessionRes === "object" &&
+          "data" in sessionRes &&
+          sessionRes.data &&
+          typeof sessionRes.data === "object" &&
+          "session" in sessionRes.data &&
+          sessionRes.data.session &&
+          typeof sessionRes.data.session === "object" &&
+          "user" in sessionRes.data.session &&
+          sessionRes.data.session.user &&
+          typeof sessionRes.data.session.user === "object"
+        ) {
+          const sessionUser = sessionRes.data.session.user as {
+            id?: string;
+            email?: string | null;
+          };
+          if (sessionUser.id) {
+            u = { id: sessionUser.id, email: sessionUser.email ?? null };
+          }
+        }
+
         if (!u) {
           const unauth = { code: "unauthenticated" } as AdminAuthError;
           onFailRef.current?.(unauth);
@@ -101,12 +147,27 @@ export function useAdminGuard({
             .select("role")
             .eq("id", u.id)
             .maybeSingle();
-          let prof: any = profRes?.data ?? null;
-          if (Array.isArray(prof)) prof = prof[0] ?? null;
+
+          // Type guard for profile data
+          let prof: { role?: unknown } | null = null;
+
+          if (
+            profRes &&
+            typeof profRes === "object" &&
+            "data" in profRes &&
+            profRes.data
+          ) {
+            if (Array.isArray(profRes.data)) {
+              prof = profRes.data[0] ?? null;
+            } else if (typeof profRes.data === "object") {
+              prof = profRes.data as { role?: unknown };
+            }
+          }
+
           if (prof && typeof prof.role === "string") {
             isAdmin = prof.role.trim().toLowerCase() === "admin";
           }
-        } catch (e) {
+        } catch (e: unknown) {
           // ignore profile check error
         }
 
@@ -126,7 +187,8 @@ export function useAdminGuard({
 
         finish(null);
       } catch (e: unknown) {
-        const err = { code: "error", message: String(e) } as AdminAuthError;
+        const message = e instanceof Error ? e.message : String(e);
+        const err = { code: "error", message } as AdminAuthError;
         onFailRef.current?.(err);
         finish(err);
       }
