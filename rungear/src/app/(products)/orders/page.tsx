@@ -16,7 +16,7 @@ type Order = {
   amount: number;
   payment_link_id: string | null;
   paid_at: string | null;
-  shipping_address: any;
+  shipping_address: unknown;
 };
 
 const STATUS_CONFIG: Record<

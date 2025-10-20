@@ -21,7 +21,7 @@ export async function PUT(
       );
     }
 
-    const { id } = await params; // ✅ Await params
+    const { id } = await params;
     const body = await req.json();
     const { status, paid_at } = body;
 
@@ -47,7 +47,7 @@ export async function PUT(
       );
     }
 
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       status,
     };
 
@@ -61,7 +61,7 @@ export async function PUT(
       .from("orders")
       .update(payload)
       .eq("id", id)
-      .eq("user_id", user.id) // Chỉ cho phép user tự update đơn hàng của mình
+      .eq("user_id", user.id)
       .select()
       .single();
 
@@ -75,10 +75,12 @@ export async function PUT(
 
     console.log("PUT order success:", data);
     return NextResponse.json({ success: true, data }, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Internal Server Error";
     console.error("PUT order error:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Internal Server Error" },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }
@@ -104,7 +106,7 @@ export async function DELETE(
       );
     }
 
-    const { id } = await params; // ✅ Await params
+    const { id } = await params;
 
     console.log("DELETE order id:", id);
 
@@ -112,7 +114,7 @@ export async function DELETE(
       .from("orders")
       .delete()
       .eq("id", id)
-      .eq("user_id", user.id); // Chỉ cho phép user tự xóa đơn hàng của mình
+      .eq("user_id", user.id);
 
     if (error) {
       console.error("Supabase DELETE order error:", error);
@@ -124,10 +126,12 @@ export async function DELETE(
 
     console.log("DELETE order success");
     return NextResponse.json({ success: true }, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Internal Server Error";
     console.error("DELETE order error:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Internal Server Error" },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }

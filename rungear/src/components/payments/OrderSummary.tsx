@@ -139,9 +139,7 @@ export function OrderSummary({
       found.type === "percent"
         ? Math.round(subtotal * ((found.percent_off ?? 0) / 100))
         : found.amount_off ?? 0;
-    setMessage(
-      `✅ Áp dụng thành công! Giảm ${formatPriceVND(discountAmount)}`
-    );
+    setMessage(`✅ Áp dụng thành công! Giảm ${formatPriceVND(discountAmount)}`);
   };
 
   const handleSelectCode = (codeId: string) => {
@@ -209,7 +207,7 @@ export function OrderSummary({
               <select
                 value={appliedCode?.id ?? ""}
                 onChange={(e) => handleSelectCode(e.target.value)}
-                 className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5
              text-sm shadow-sm outline-none transition
              focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
               >
@@ -221,7 +219,9 @@ export function OrderSummary({
                       : formatPriceVND(dc.amount_off ?? 0);
                   const minOrderDisplay =
                     dc.min_order_amount > 0
-                      ? ` (Đơn tối thiểu ${formatPriceVND(dc.min_order_amount)})`
+                      ? ` (Đơn tối thiểu ${formatPriceVND(
+                          dc.min_order_amount
+                        )})`
                       : "";
                   return (
                     <option key={dc.id} value={dc.id}>
@@ -294,7 +294,9 @@ export function OrderSummary({
             <span>Phí vận chuyển</span>
             <span className="font-medium">
               {shippingFee === 0 ? (
-                <span className="text-green-600 font-semibold">Miễn phí ✨</span>
+                <span className="text-green-600 font-semibold">
+                  Miễn phí ✨
+                </span>
               ) : (
                 formatPriceVND(shippingFee)
               )}
@@ -334,17 +336,19 @@ export function OrderSummary({
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 orderCode,
-                amount: finalTotal,
-                description: "Thanh toán đơn hàng #" + orderCode,
+                // amount: finalTotal,
+                amount: 2000,
+                description: "Thanh toán đơn hàng #" ,
                 discountCodeId: appliedCode?.id ?? null,
               }),
             });
-            const data = await res.json();
 
-            if (data?.data?.checkoutUrl) {
-              window.location.href = data.data.checkoutUrl;
+            const data = await res.json();
+            const url = data?.data?.checkoutUrl;
+            if (url) {
+              window.location.href = url;
             } else {
-              alert("Tạo thanh toán thất bại!");
+              alert(data?.desc || "Tạo thanh toán thất bại!");
             }
           }}
         >

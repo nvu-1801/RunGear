@@ -34,10 +34,12 @@ export async function GET(req: NextRequest) {
 
     console.log("GET orders success:", data);
     return NextResponse.json({ success: true, data }, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Internal Server Error";
     console.error("GET orders error:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Internal Server Error" },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }
@@ -78,7 +80,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       user_id: user.id,
       order_code,
       total,
@@ -107,10 +109,12 @@ export async function POST(req: NextRequest) {
 
     console.log("POST order success:", data);
     return NextResponse.json({ success: true, data }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Internal Server Error";
     console.error("POST order error:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Internal Server Error" },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }

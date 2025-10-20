@@ -8,7 +8,7 @@ export async function PUT(
   try {
     const supabase = await supabaseServer();
 
-    const { id } = await params; // ✅ Await params
+    const { id } = await params;
     const body = await req.json();
     const {
       code,
@@ -48,8 +48,8 @@ export async function PUT(
       );
     }
 
-    const payload: any = {
-      code: code.trim().toUpperCase(),
+    const payload: Record<string, unknown> = {
+      code: String(code).trim().toUpperCase(),
       type,
       start_at: start_at || new Date().toISOString(),
       end_at: end_at || null,
@@ -87,10 +87,12 @@ export async function PUT(
 
     console.log("PUT discount_codes success:", data);
     return NextResponse.json({ success: true, data }, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Internal Server Error";
     console.error("PUT discount_codes error:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Internal Server Error" },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }
@@ -103,7 +105,7 @@ export async function DELETE(
   try {
     const supabase = await supabaseServer();
 
-    const { id } = await params; // ✅ Await params
+    const { id } = await params;
 
     console.log("DELETE id:", id);
 
@@ -122,10 +124,12 @@ export async function DELETE(
 
     console.log("DELETE discount_codes success");
     return NextResponse.json({ success: true }, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Internal Server Error";
     console.error("DELETE discount_codes error:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Internal Server Error" },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }

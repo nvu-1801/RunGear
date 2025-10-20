@@ -18,7 +18,7 @@ type Order = {
   amount: number;
   payment_link_id: string | null;
   paid_at: string | null;
-  shipping_address: any;
+  shipping_address: unknown;
 };
 
 const STATUS_CONFIG: Record<
@@ -100,8 +100,10 @@ export default function CartPage() {
         if (!mounted) return;
         if (error) throw error;
         setOrders((ordersData as Order[]) ?? []);
-      } catch (e) {
-        console.error("Load orders error:", e);
+      } catch (e: unknown) {
+        const errorMessage =
+          e instanceof Error ? e.message : "Không thể tải đơn hàng";
+        console.error("Load orders error:", errorMessage);
       } finally {
         if (mounted) setLoadingOrders(false);
       }

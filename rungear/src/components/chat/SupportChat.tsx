@@ -20,7 +20,7 @@ type ChatMessage = {
   createdAt: string;
 };
 
-function isValidSessionId(s: unknown) {
+function isValidSessionId(s: unknown): s is string {
   if (typeof s !== "string") return false;
   return /^[A-Za-z0-9\-_:.]+$/.test(s) && s.length > 5;
 }
@@ -31,7 +31,18 @@ function useChatSession(): string | null {
     try {
       let cur = localStorage.getItem("rg_chat_session");
       if (!isValidSessionId(cur)) {
-        cur = (crypto as any).randomUUID?.() ?? `${Date.now()}`;
+        // Type guard for crypto.randomUUID
+        const cryptoObj = typeof crypto !== "undefined" ? crypto : null;
+        const hasRandomUUID =
+          cryptoObj &&
+          typeof cryptoObj === "object" &&
+          "randomUUID" in cryptoObj &&
+          typeof (cryptoObj as { randomUUID?: unknown }).randomUUID ===
+            "function";
+
+        cur = hasRandomUUID
+          ? (cryptoObj as { randomUUID: () => string }).randomUUID()
+          : `${Date.now()}`;
         cur = `${cur}-sess`;
         try {
           localStorage.setItem("rg_chat_session", cur);
@@ -40,7 +51,7 @@ function useChatSession(): string | null {
         }
       }
       setSid(cur);
-    } catch (err) {
+    } catch (err: unknown) {
       const fallback = `${Date.now()}-sess`;
       setSid(fallback);
     }
@@ -66,9 +77,19 @@ export default function SupportChat() {
     (async () => {
       try {
         const { data } = await sb.auth.getUser();
-        const user = (data as any)?.user ?? null;
-        if (user?.email) setUsername(user.email); // <- đảm bảo setUsername
-        if (user?.id) setCurrentUserId(user.id);
+
+        // Type guard for user data
+        if (
+          data &&
+          typeof data === "object" &&
+          "user" in data &&
+          data.user &&
+          typeof data.user === "object"
+        ) {
+          const user = data.user as { id?: string; email?: string };
+          if (user.email) setUsername(user.email);
+          if (user.id) setCurrentUserId(user.id);
+        }
       } catch (e: unknown) {
         // ignore
       }
@@ -89,6 +110,12 @@ export default function SupportChat() {
 
         if (!mounted) return;
         if (error) {
+          setInitial([]);
+          return;
+        }
+
+        // Type guard for data
+        if (!Array.isArray(data)) {
           setInitial([]);
           return;
         }

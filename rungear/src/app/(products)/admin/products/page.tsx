@@ -19,7 +19,7 @@ type Product = {
 };
 
 type PageResp = {
-  items: (Product & { categories_id?: Category | null })[];
+  items: (Omit<Product, 'categories_id'> & { categories_id?: Category | null })[];
   total: number;
   page: number;
   pageSize: number;
@@ -56,14 +56,15 @@ export default function ProductManager() {
 
       const r = await fetch(url.toString(), { cache: "no-store" });
       if (!r.ok) throw new Error("Network response was not ok");
-      const json = (await r.json()) as PageResp | Product[];
+      const json: unknown = await r.json();
 
+      // Type guard for array response
       if (Array.isArray(json)) {
         const items = json as Product[];
         const pageResp: PageResp = {
           items: items.map((i) => ({
             ...i,
-            categories_id: i.categories_id as any,
+            categories_id: i.categories_id as unknown as Category | null,
           })),
           total: items.length,
           page,
@@ -72,13 +73,24 @@ export default function ProductManager() {
         setData(pageResp);
         setAllPosts(items);
         return pageResp;
+      } else if (
+        json &&
+        typeof json === "object" &&
+        "items" in json &&
+        "total" in json
+      ) {
+        // Type guard for PageResp
+        const pageResp = json as PageResp;
+        setData(pageResp);
+        setAllPosts(pageResp.items as unknown as Product[]);
+        return pageResp;
       } else {
-        setData(json);
-        setAllPosts(json.items as Product[]);
-        return json;
+        throw new Error("Invalid response format");
       }
-    } catch (error) {
-      console.error("Fetch Error:", error);
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Fetch failed";
+      console.error("Fetch Error:", errorMessage);
     } finally {
       setLoading(false);
     }
@@ -99,8 +111,14 @@ export default function ProductManager() {
   };
   const onDelete = async (id: string) => {
     if (!confirm("Delete this product?")) return;
-    await fetch(`/api/products/${id}`, { method: "DELETE" });
-    void fetchList();
+    try {
+      await fetch(`/api/products/${id}`, { method: "DELETE" });
+      void fetchList();
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Delete failed";
+      console.error("Delete Error:", errorMessage);
+    }
   };
   const onSaved = () => {
     setShowForm(false);
