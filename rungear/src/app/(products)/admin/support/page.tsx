@@ -90,12 +90,28 @@ export default function AdminSupportPage() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "support_messages" },
         (payload) => {
-          const d = payload.new as SessionRow;
-          if (!d?.session_id) return;
+          const newData: unknown = payload.new;
+
+          // Type guard for newData
+          if (
+            !newData ||
+            typeof newData !== "object" ||
+            !("session_id" in newData) ||
+            typeof newData.session_id !== "string"
+          ) {
+            return;
+          }
+
+          const sessionData = newData as {
+            session_id: string;
+            user_id?: string | null;
+            created_at?: string;
+          };
+
           upsertAndBumpTop({
-            session_id: d.session_id,
-            user_id: (d as any).user_id ?? null,
-            created_at: (d as any).created_at,
+            session_id: sessionData.session_id,
+            user_id: sessionData.user_id ?? null,
+            created_at: sessionData.created_at,
           });
         }
       )

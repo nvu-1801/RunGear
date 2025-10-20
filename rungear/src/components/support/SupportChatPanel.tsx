@@ -45,6 +45,13 @@ export default function SupportChatPanel({ sessionId }: { sessionId: string }) {
         setInitial([]);
         return;
       }
+
+      // Type guard for data
+      if (!Array.isArray(data)) {
+        setInitial([]);
+        return;
+      }
+
       const mapped = (data as DBMsg[]).map((m) => ({
         id: m.id,
         content: m.text,
@@ -77,10 +84,27 @@ export default function SupportChatPanel({ sessionId }: { sessionId: string }) {
       sendingRef.current = true;
       try {
         const { data, error: authErr } = await sb.auth.getUser();
-        const user = (data as any)?.user ?? null;
 
-        if (authErr || !user) {
+        // Type guard for user data
+        if (authErr) {
+          console.error("Admin auth error:", authErr);
+          return;
+        }
+
+        if (
+          !data ||
+          typeof data !== "object" ||
+          !("user" in data) ||
+          !data.user ||
+          typeof data.user !== "object"
+        ) {
           console.error("Admin not authenticated");
+          return;
+        }
+
+        const user = data.user as { id?: string };
+        if (!user.id) {
+          console.error("Admin user has no id");
           return;
         }
 
@@ -96,8 +120,9 @@ export default function SupportChatPanel({ sessionId }: { sessionId: string }) {
         } else {
           lastSentRef.current = { sig, ts: Date.now() };
         }
-      } catch (e) {
-        console.error("handleMessage error", e);
+      } catch (e: unknown) {
+        const errorMessage = e instanceof Error ? e.message : "Unknown error";
+        console.error("handleMessage error:", errorMessage);
       } finally {
         sendingRef.current = false;
       }

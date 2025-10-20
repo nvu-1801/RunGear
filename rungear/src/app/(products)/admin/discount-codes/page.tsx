@@ -99,7 +99,7 @@ export default function AdminDiscountCodesPage() {
 
   async function handleSave() {
     try {
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         code: code.trim().toUpperCase(),
         type,
         start_at: startAt
@@ -141,9 +141,10 @@ export default function AdminDiscountCodesPage() {
 
       await loadCodes();
       resetForm();
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : "Không thể lưu";
       console.error("Save discount code error:", e);
-      alert("Lỗi: " + (e?.message ?? "Không thể lưu"));
+      alert("Lỗi: " + errorMessage);
     }
   }
 
@@ -156,9 +157,10 @@ export default function AdminDiscountCodesPage() {
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
       await loadCodes();
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : "Không thể xóa";
       console.error("Delete discount code error:", e);
-      alert("Lỗi: " + (e?.message ?? "Không thể xóa"));
+      alert("Lỗi: " + errorMessage);
     }
   }
 
@@ -167,7 +169,7 @@ export default function AdminDiscountCodesPage() {
       const item = codes.find((c) => c.id === id);
       if (!item) return;
 
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         code: item.code,
         type: item.type,
         start_at: item.start_at,
@@ -195,9 +197,11 @@ export default function AdminDiscountCodesPage() {
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
       await loadCodes();
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const errorMessage =
+        e instanceof Error ? e.message : "Không thể cập nhật";
       console.error("Toggle enabled error:", e);
-      alert("Lỗi: " + (e?.message ?? "Không thể cập nhật"));
+      alert("Lỗi: " + errorMessage);
     }
   }
 
