@@ -106,7 +106,7 @@ export default async function ProductsGroupLayout({
                             >
                               Mã giảm giá
                             </Link>
-                             <Link
+                            <Link
                               href="/admin/support"
                               className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-blue-50"
                             >
@@ -172,7 +172,7 @@ export default async function ProductsGroupLayout({
 
                 <div className="absolute left-1/2 -translate-x-1/2 top-full mt-3 hidden peer-checked:flex flex-col bg-white border border-gray-200 rounded-xl shadow-xl w-60 py-2 z-50">
                   <Link
-                    href="/orders/track"
+                    href="/orders"
                     className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-blue-50"
                   >
                     <span>🎯</span> Theo dõi đơn hàng

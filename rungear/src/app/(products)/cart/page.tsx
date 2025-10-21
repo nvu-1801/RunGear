@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { useCart } from "@/components/cart/cart-store";
 import { formatPriceVND } from "@/shared/price";
 import { supabaseBrowser } from "@/libs/supabase/supabase-client";
+import { CartItemsList } from "@/components/cart/CartItemsList";
+import { CartSummary } from "@/components/cart/CartSummary";
 
 type OrderStatus = "PENDING" | "PROCESSING" | "PAID" | "CANCELLED" | "FAILED";
 
@@ -207,164 +209,22 @@ export default function CartPage() {
                     </button>
                   </div>
 
-                  <ul className="divide-y">
-                    {items.map((it) => (
-                      <li
-                        key={it.id + (it.variant ?? "")}
-                        className="p-4 sm:p-5 flex items-start gap-4 hover:bg-gray-50/60"
-                      >
-                        <Link
-                          href={`/products/${it.slug}`}
-                          className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden border bg-white shrink-0 block"
-                        >
-                          <img
-                            src={it.image || "/placeholder.png"}
-                            alt={it.name}
-                            className="w-full h-full object-cover"
-                          />
-                        </Link>
-
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <Link
-                                href={`/products/${it.slug}`}
-                                className="text-sm sm:text-base font-semibold text-gray-900 line-clamp-2 hover:underline"
-                              >
-                                {it.name}
-                              </Link>
-                              {it.variant && (
-                                <div className="text-xs text-gray-500 mt-0.5">
-                                  Phân loại: {it.variant}
-                                </div>
-                              )}
-                            </div>
-
-                            <button
-                              onClick={() => remove(it.id, it.variant ?? null)}
-                              className="p-1.5 rounded-full text-gray-400 hover:text-red-600 hover:bg-red-50 transition"
-                              title="Xoá sản phẩm"
-                            >
-                              <svg
-                                className="w-5 h-5"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  d="M6 18L18 6M6 6l12 12"
-                                />
-                              </svg>
-                            </button>
-                          </div>
-
-                          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                            <div className="inline-flex items-center border rounded-full bg-white shadow-sm">
-                              <button
-                                className="px-2 py-1 rounded-l-full hover:bg-blue-50 text-blue-600 text-lg transition"
-                                onClick={() =>
-                                  updateQty(it.id, -1, it.variant ?? null)
-                                }
-                                aria-label="Giảm số lượng"
-                              >
-                                −
-                              </button>
-                              <div className="w-9 text-gray-700 text-center text-sm">
-                                {it.qty}
-                              </div>
-                              <button
-                                className="px-2 py-1 rounded-r-full hover:bg-blue-50 text-blue-600 text-lg transition"
-                                onClick={() =>
-                                  updateQty(it.id, +1, it.variant ?? null)
-                                }
-                                aria-label="Tăng số lượng"
-                              >
-                                +
-                              </button>
-                            </div>
-
-                            <div className="text-sm sm:text-base font-bold text-blue-700 whitespace-nowrap">
-                              {formatPriceVND(it.price * it.qty)}
-                            </div>
-                          </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+                  <CartItemsList
+                    items={items}
+                    updateQty={updateQty}
+                    remove={remove}
+                  />
                 </div>
               </section>
 
               {/* RIGHT: Tóm tắt */}
               <aside className="md:col-span-1">
-                <div className="sticky top-20 space-y-4">
-                  <div className="rounded-2xl border bg-white p-6 shadow-lg">
-                    <h2 className="text-lg font-semibold text-gray-800 mb-4">
-                      Tóm tắt đơn hàng
-                    </h2>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-700">Tạm tính</span>
-                        <span className="font-semibold">
-                          {formatPriceVND(subtotal)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <button
-                      className="mt-6 w-full h-12 rounded-xl bg-blue-700 text-white font-semibold text-base shadow hover:bg-blue-800 transition disabled:opacity-50"
-                      onClick={gotoCheckout}
-                      disabled={isEmpty}
-                    >
-                      Thanh toán
-                    </button>
-
-                    <div className="mt-3 text-center">
-                      <Link
-                        href="/payments"
-                        className="text-sm text-blue-600 underline hover:text-blue-800 transition"
-                      >
-                        Đi tới trang thanh toán
-                      </Link>
-                    </div>
-
-                    <p className="mt-4 text-xs text-gray-500 text-center">
-                      Bạn có thể nhập mã giảm giá và chọn phương thức thanh toán
-                      ở bước tiếp theo.
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border bg-gradient-to-br from-sky-50 to-indigo-50 p-5">
-                    <div className="flex items-center gap-3">
-                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-white ring-1 ring-black/5">
-                        <svg
-                          viewBox="0 0 24 24"
-                          className="h-5 w-5 text-indigo-700"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        >
-                          <path
-                            d="M7 7h.01M3 11l10 10 8-8-10-10H3v8z"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </span>
-                      <div className="text-sm">
-                        <div className="font-semibold text-gray-800">
-                          Mẹo: đơn trên 300.000đ
-                        </div>
-                        <div className="text-gray-600">
-                          Có thể được miễn phí vận chuyển (xem tại trang thanh
-                          toán).
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <CartSummary
+                  subtotal={subtotal}
+                  clear={clear}
+                  isEmpty={isEmpty}
+                  gotoCheckout={gotoCheckout}
+                />
               </aside>
             </div>
           )
