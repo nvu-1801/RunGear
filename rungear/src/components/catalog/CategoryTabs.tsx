@@ -73,7 +73,7 @@ export default async function CategoryTabs({ active = "all", q, min, max, pathna
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full mb-6 md:mb-8 relative z-10">
       {/* vùng cuộn ngang, không ăn tràn ra ngoài page */}
       <div className="overflow-x-auto scrollbar-hide overscroll-x-contain">
         <div className="flex items-center w-full">
@@ -86,19 +86,17 @@ export default async function CategoryTabs({ active = "all", q, min, max, pathna
             rounded-full border bg-white/80 backdrop-blur
             px-2 py-2 shadow-sm
           "
-          >
-            {Tab("Tất cả", "all")}
-            {Tab("Áo", "ao")}
-            {Tab("Quần", "quan")}
-            {Tab("Giày", "giay")}
-          </div>
+          style={{ zIndex: 10, position: "relative" }} // Thêm style này nếu cần
+        >
+          {Tab("Tất cả", "all")}
+          {Tab("Áo", "ao")}
+          {Tab("Quần", "quan")}
+          {Tab("Giày", "giay")}
+        </div>
 
-          <div className="flex-shrink-0 w-3 sm:w-0" />
+        <div className="flex-shrink-0 w-3 sm:w-0" />
         </div>
       </div>
     </div>
   );
-
-
-
 }
