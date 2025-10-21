@@ -336,9 +336,9 @@ export function OrderSummary({
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 orderCode,
-                // amount: finalTotal,
-                amount: 2000,
-                description: "Thanh toán đơn hàng #" ,
+                amount: finalTotal,
+                // amount: 2000,
+                description: "Thanh toán đơn hàng # + ",
                 discountCodeId: appliedCode?.id ?? null,
               }),
             });

@@ -40,8 +40,8 @@ export default function ProductDetailClient({ product }: { product: Product }) {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await sb.auth.getSession();
-        setIsLoggedIn(Boolean(data?.session?.user));
+        const { data, error } = await sb.auth.getUser();
+        setIsLoggedIn(Boolean(data?.user));
       } catch {
         setIsLoggedIn(false);
       }
@@ -99,7 +99,7 @@ export default function ProductDetailClient({ product }: { product: Product }) {
 
   function handleLoginRedirect() {
     setShowLoginModal(false);
-    router.push("/signin");
+    router.push("/auth/signin");
   }
 
   return (

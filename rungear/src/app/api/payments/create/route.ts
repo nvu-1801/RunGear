@@ -20,8 +20,11 @@ export async function POST(req: Request) {
     const orderCode =
       typeof bodyObj.orderCode === "number" ? bodyObj.orderCode : Date.now();
 
-    // ✅ Ép số tiền test = 2000 tại server (không tin client)
-    const amount = 2000;
+    // const amount = 2000;
+    const amount =
+      typeof bodyObj.amount === "number" && bodyObj.amount > 0
+        ? bodyObj.amount
+        : 2000;
 
     const clientId = process.env.PAYOS_CLIENT_ID!;
     const apiKey = process.env.PAYOS_API_KEY!;
