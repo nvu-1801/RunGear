@@ -1,9 +1,6 @@
 // src/app/api/products/route.ts
 import { NextResponse } from "next/server";
-import {
-  listProducts,
-  createProduct,
-} from "@/modules/products/controller/product.service";
+import { listProducts, createProduct } from "@/modules/products/controller/product.service";
 
 // API GET: Lấy danh sách sản phẩm
 export async function GET(req: Request) {
@@ -29,7 +26,10 @@ export async function GET(req: Request) {
     }
 
     const products = await listProducts({ q, cat });
-    return NextResponse.json(products); // Trả về dữ liệu sản phẩm dưới dạng JSON
+    // Đảm bảo luôn trả về array
+    return NextResponse.json({
+      items: Array.isArray(products) ? products : products ? [products] : [],
+    });
   } catch (err: unknown) {
     console.error("/api/products GET error", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
