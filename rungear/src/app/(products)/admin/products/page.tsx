@@ -19,7 +19,9 @@ type Product = {
 };
 
 type PageResp = {
-  items: (Omit<Product, 'categories_id'> & { categories_id?: Category | null })[];
+  items: (Omit<Product, "categories_id"> & {
+    categories_id?: Category | null;
+  })[];
   total: number;
   page: number;
   pageSize: number;
@@ -56,37 +58,11 @@ export default function ProductManager() {
 
       const r = await fetch(url.toString(), { cache: "no-store" });
       if (!r.ok) throw new Error("Network response was not ok");
-      const json: unknown = await r.json();
-
-      // Type guard for array response
-      if (Array.isArray(json)) {
-        const items = json as Product[];
-        const pageResp: PageResp = {
-          items: items.map((i) => ({
-            ...i,
-            categories_id: i.categories_id as unknown as Category | null,
-          })),
-          total: items.length,
-          page,
-          pageSize,
-        };
-        setData(pageResp);
-        setAllPosts(items);
-        return pageResp;
-      } else if (
-        json &&
-        typeof json === "object" &&
-        "items" in json &&
-        "total" in json
-      ) {
-        // Type guard for PageResp
-        const pageResp = json as PageResp;
-        setData(pageResp);
-        setAllPosts(pageResp.items as unknown as Product[]);
-        return pageResp;
-      } else {
-        throw new Error("Invalid response format");
-      }
+      const json = await r.json();
+      const pageResp = json as PageResp;
+      setData(pageResp);
+      setAllPosts(pageResp.items as unknown as Product[]);
+      return pageResp;
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Fetch failed";

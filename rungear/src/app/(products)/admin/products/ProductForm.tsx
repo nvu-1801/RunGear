@@ -11,12 +11,13 @@ import {
   FormikProps,
 } from "formik";
 import * as Yup from "yup";
+import AdminImageUploader from "@/components/uploader/AdminImageUploader";
 
 type ProductInput = {
   name: string;
   price: number;
   stock: number;
-  images?: string | null; // single image url / dataURL
+  images?: string | null; // single image url
   status: "draft" | "active" | "hidden";
   categories_id:
     | "1d4478e7-c9d2-445e-8520-14dae73aac68"
@@ -40,14 +41,10 @@ const validationSchema = Yup.object({
   status: Yup.mixed().oneOf(["draft", "active", "hidden"]).required(),
   images: Yup.string()
     .nullable()
-    .test(
-      "is-url-or-data",
-      "Phải là URL hợp lệ hoặc ảnh dán/không bắt buộc",
-      (v) => {
-        if (!v) return true;
-        return v.startsWith("data:") || /^https?:\/\//i.test(v);
-      }
-    ),
+    .test("is-url-or-empty", "Phải là URL hợp lệ hoặc để trống", (v) => {
+      if (!v || v.trim() === "") return true; // cho phép rỗng
+      return /^https?:\/\/.+/i.test(v); // check có http/https
+    }),
 });
 
 export default function ProductForm({ initial, onClose, onSaved }: Props) {
@@ -73,15 +70,6 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
     setPreviewSrc(initialValues.images ?? null);
   }, [initialValues.images]);
 
-  // helper: convert File -> dataURL
-  const fileToDataUrl = (file: File): Promise<string> =>
-    new Promise((res, rej) => {
-      const reader = new FileReader();
-      reader.onload = () => res(String(reader.result));
-      reader.onerror = () => rej(new Error("File read error"));
-      reader.readAsDataURL(file);
-    });
-
   const handleSubmit = async (
     values: ProductInput,
     helpers: FormikHelpers<ProductInput>
@@ -91,7 +79,6 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
     try {
       const payload: ProductInput = {
         ...values,
-        // ensure numbers
         price: Number(values.price || 0),
         stock: Number(values.stock || 0),
         images:
@@ -126,24 +113,22 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
 
   return (
     <div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-3xl shadow-xl border">
-        <div className="flex items-center justify-between p-4 border-b">
+      <div className="bg-white rounded-2xl w-full max-w-3xl shadow-xl border max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
           <div>
             <h2 className="text-lg font-semibold">
               {isEdit ? "Sửa sản phẩm" : "Tạo sản phẩm mới"}
             </h2>
             <div className="text-xs text-gray-500">
-              Điền thông tin cơ bản và ảnh
+              Điền thông tin cơ bản và upload ảnh
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              className="px-3 py-1 rounded-lg hover:bg-gray-100"
-            >
-              ✕
-            </button>
-          </div>
+          <button
+            onClick={onClose}
+            className="px-3 py-1 rounded-lg hover:bg-gray-100"
+          >
+            ✕
+          </button>
         </div>
 
         <Formik<ProductInput>
@@ -225,57 +210,49 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
                   </label>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="md:col-span-2 flex flex-col gap-2">
-                      {/* images input: controlled via formik */}
+                      {/* URL input (controlled) */}
                       <input
                         name="images"
-                        placeholder="Dán URL ảnh hoặc dùng nút Upload"
+                        placeholder="URL ảnh (tự động điền sau khi upload)"
                         className="border px-3 py-2 rounded-md w-full"
                         value={formik.values.images ?? ""}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                          formik.setFieldValue("images", e.target.value)
-                        }
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                          const v = e.target.value;
+                          formik.setFieldValue("images", v);
+                          setPreviewSrc(v || null);
+                        }}
                         onBlur={(e: FocusEvent<HTMLInputElement>) => {
                           const v = (e.target.value ?? "").toString().trim();
                           formik.setFieldValue("images", v || "");
                           setPreviewSrc(v || null);
                         }}
                       />
-                      <div className="flex items-center gap-2">
-                        <label className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-gray-50 border cursor-pointer text-sm">
-                          Upload file
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={async (
-                              e: ChangeEvent<HTMLInputElement>
-                            ) => {
-                              const f = e.target.files?.[0];
-                              if (!f) return;
-                              try {
-                                const d = await fileToDataUrl(f);
-                                formik.setFieldValue("images", d);
-                                setPreviewSrc(d);
-                              } catch {
-                                // ignore
-                              }
-                            }}
-                          />
-                        </label>
-                        <button
-                          type="button"
-                          className="px-3 py-2 rounded-md border text-sm"
-                          onClick={() => {
-                            formik.setFieldValue("images", "");
-                            setPreviewSrc(null);
-                          }}
-                        >
-                          Clear
-                        </button>
-                      </div>
+
+                      {/* Upload component */}
+                      <AdminImageUploader
+                        folder={`products/${
+                          initial?.id || crypto.randomUUID()
+                        }`}
+                        onUploaded={(file) => {
+                          formik.setFieldValue("images", file.publicUrl);
+                          setPreviewSrc(file.publicUrl);
+                        }}
+                      />
+
+                      <button
+                        type="button"
+                        className="px-3 py-2 rounded-md border text-sm self-start"
+                        onClick={() => {
+                          formik.setFieldValue("images", "");
+                          setPreviewSrc(null);
+                        }}
+                      >
+                        Clear
+                      </button>
+
                       <div className="text-xs text-gray-500">
-                        Hỗ trợ: dán URL ảnh (https...) hoặc upload file. Ảnh sẽ
-                        hiển thị preview.
+                        Upload ảnh lên bucket hoặc dán URL thủ công. Ảnh sẽ hiển
+                        thị preview.
                       </div>
                     </div>
 
@@ -317,7 +294,7 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
                 <div className="px-4 text-sm text-red-600">{submitError}</div>
               )}
 
-              <div className="p-4 border-t flex items-center justify-end gap-2">
+              <div className="p-4 border-t flex items-center justify-end gap-2 sticky bottom-0 bg-white">
                 <button
                   type="button"
                   onClick={onClose}

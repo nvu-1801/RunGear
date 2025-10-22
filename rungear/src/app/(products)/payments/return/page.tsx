@@ -6,6 +6,16 @@ import { useEffect, useState } from "react";
 import { formatPriceVND } from "@/shared/price";
 import { useCart } from "@/components/cart/cart-store";
 
+type OrderData = {
+  order_code: string;
+  amount?: number;
+  total?: number;
+};
+
+type ApiResponse = {
+  data?: unknown;
+};
+
 export default function PaymentReturnPage() {
   const { clear } = useCart();
 
@@ -24,21 +34,40 @@ export default function PaymentReturnPage() {
     (async () => {
       try {
         const res = await fetch(`/api/orders?order_code=${orderCode}`);
-        const data = await res.json();
-        // Tìm đơn hàng đúng mã
-        let order = null;
-        if (Array.isArray(data.data)) {
-          order = data.data.find(
-            (o: any) => String(o.order_code) === String(orderCode)
+        const data: ApiResponse = await res.json();
+
+        // Type guard để kiểm tra data.data là array
+        if (!Array.isArray(data.data)) {
+          setAmount(0);
+          return;
+        }
+
+        // Tìm đơn hàng đúng mã với type guard
+        const order = data.data.find((item: unknown): item is OrderData => {
+          if (!item || typeof item !== "object") return false;
+          const o = item as Record<string, unknown>;
+          return (
+            typeof o.order_code === "string" &&
+            String(o.order_code) === String(orderCode)
           );
+        });
+
+        if (!order) {
+          setAmount(0);
+          return;
         }
-        if (order && typeof order.amount === "number") {
+
+        // Lấy amount hoặc total
+        if (typeof order.amount === "number") {
           setAmount(order.amount);
-        } else if (order && typeof order.total === "number") {
+        } else if (typeof order.total === "number") {
           setAmount(order.total);
+        } else {
+          setAmount(0);
         }
-      } catch {
+      } catch (error: unknown) {
         // fallback: không lấy được thì giữ 0
+        console.error("Failed to fetch order:", error);
         setAmount(0);
       }
     })();
@@ -134,7 +163,7 @@ export default function PaymentReturnPage() {
               Xem đơn hàng
             </Link>
             <Link
-              href="/products/home"
+              href="/home"
               className="inline-flex items-center justify-center rounded-xl border border-emerald-600 text-emerald-700 px-5 py-3 font-semibold hover:bg-emerald-50 transition"
             >
               Tiếp tục mua sắm
