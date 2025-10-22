@@ -54,6 +54,9 @@ function Star({ filled, half }: { filled?: boolean; half?: boolean }) {
   );
 }
 
+// Type cho QueryParams khớp với Pagination component
+type QueryParams = Record<string, string | number | boolean | null | undefined>;
+
 export default async function ProductsPage({
   searchParams,
 }: {
@@ -95,10 +98,8 @@ export default async function ProductsPage({
   const end = Math.min(start + pageSize, total);
   const pageItems = items.slice(start, end);
 
-  const buildQuery = (
-    extra: Record<string, string | number | undefined> = {}
-  ) => {
-    const qx: Record<string, string> = {};
+  const buildQuery = (extra: QueryParams = {}): QueryParams => {
+    const qx: QueryParams = {};
     if (q) qx.q = q;
     if (cat && cat !== "all") qx.cat = cat;
     if (min) qx.min = min;
