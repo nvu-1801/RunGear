@@ -4,6 +4,20 @@ import Link from "next/link";
 import { productImageUrl } from "@/modules/products/model/product-public";
 import { formatPriceVND } from "@/shared/price";
 
+// Type định nghĩa cho Product
+type Product = {
+  id: string;
+  name: string;
+  price: number;
+  stock: number;
+  images?: string | null;
+};
+
+// Type cho API response
+type ApiProductsResponse = {
+  items?: unknown;
+};
+
 function hashTo01(str: string) {
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) {
@@ -12,12 +26,14 @@ function hashTo01(str: string) {
   }
   return ((h >>> 0) % 1000) / 1000;
 }
+
 function getRatingFor(id: string) {
   const r = hashTo01(id);
   const rating = Math.round((3.6 + r * 1.4) * 2) / 2;
   const reviews = 15 + Math.floor(r * 465);
   return { rating, reviews };
 }
+
 function Star({ filled, half }: { filled?: boolean; half?: boolean }) {
   return (
     <svg
@@ -49,6 +65,7 @@ function Star({ filled, half }: { filled?: boolean; half?: boolean }) {
     </svg>
   );
 }
+
 function StarRating({ value }: { value: number }) {
   const stars = [];
   for (let i = 1; i <= 5; i++) {
@@ -66,6 +83,18 @@ function StarRating({ value }: { value: number }) {
   );
 }
 
+// Type guard để kiểm tra product hợp lệ
+function isProduct(item: unknown): item is Product {
+  if (!item || typeof item !== "object") return false;
+  const p = item as Record<string, unknown>;
+  return (
+    typeof p.id === "string" &&
+    typeof p.name === "string" &&
+    typeof p.price === "number" &&
+    typeof p.stock === "number"
+  );
+}
+
 export function ProductGridClient({
   q,
   cat,
@@ -77,7 +106,7 @@ export function ProductGridClient({
   min?: string;
   max?: string;
 }) {
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -93,13 +122,20 @@ export function ProductGridClient({
         if (!res.ok) throw new Error("API error: " + res.status);
         return res.json();
       })
-      .then((data) => {
-        setItems(data.items ?? []);
-        if (!Array.isArray(data.items)) {
+      .then((data: unknown) => {
+        const response = data as ApiProductsResponse;
+
+        if (!Array.isArray(response.items)) {
           console.error("API trả về không đúng định dạng:", data);
+          setItems([]);
+          return;
         }
+
+        // Filter và validate products
+        const validProducts = response.items.filter(isProduct);
+        setItems(validProducts);
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         console.error("Không lấy được sản phẩm:", err);
         setItems([]);
       })

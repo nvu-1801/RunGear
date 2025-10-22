@@ -1,7 +1,5 @@
-import Link from "next/link";
 import { listProducts } from "@/modules/products/controller/product.service";
 import { productImageUrl } from "@/modules/products/model/product-public";
-import { formatPriceVND } from "../../../shared/price";
 import { SearchFilterForm } from "@/components/catalog/SearchFilterForm";
 import { ProductGridClient } from "@/components/catalog/ProductGrid";
 import { Pagination } from "@/components/catalog/Pagination";
@@ -15,9 +13,6 @@ export const revalidate = 60;
 /** --- Helpers: rating ổn định theo id --- */
 const nfVI = new Intl.NumberFormat("vi-VN"); // cố định locale
 
-function formatInt(n: number) {
-  return nfVI.format(n);
-}
 function hashTo01(str: string) {
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) {
@@ -26,12 +21,7 @@ function hashTo01(str: string) {
   }
   return ((h >>> 0) % 1000) / 1000;
 }
-function getRatingFor(id: string) {
-  const r = hashTo01(id);
-  const rating = Math.round((3.6 + r * 1.4) * 2) / 2;
-  const reviews = 15 + Math.floor(r * 465);
-  return { rating, reviews };
-}
+
 function Star({ filled, half }: { filled?: boolean; half?: boolean }) {
   return (
     <svg
@@ -63,22 +53,9 @@ function Star({ filled, half }: { filled?: boolean; half?: boolean }) {
     </svg>
   );
 }
-function StarRating({ value }: { value: number }) {
-  const stars = [];
-  for (let i = 1; i <= 5; i++) {
-    const diff = value - i;
-    stars.push(
-      <Star
-        key={i}
-        filled={diff >= 0}
-        half={diff >= -1 && diff < 0 && Math.abs(diff) >= 0 && value % 1 !== 0}
-      />
-    );
-  }
-  return (
-    <div className="flex items-center gap-0.5 text-amber-500">{stars}</div>
-  );
-}
+
+// Type cho QueryParams khớp với Pagination component
+type QueryParams = Record<string, string | number | boolean | null | undefined>;
 
 export default async function ProductsPage({
   searchParams,
@@ -121,10 +98,8 @@ export default async function ProductsPage({
   const end = Math.min(start + pageSize, total);
   const pageItems = items.slice(start, end);
 
-  const buildQuery = (
-    extra: Record<string, string | number | undefined> = {}
-  ) => {
-    const qx: Record<string, string> = {};
+  const buildQuery = (extra: QueryParams = {}): QueryParams => {
+    const qx: QueryParams = {};
     if (q) qx.q = q;
     if (cat && cat !== "all") qx.cat = cat;
     if (min) qx.min = min;

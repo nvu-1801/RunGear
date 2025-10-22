@@ -4,35 +4,41 @@ import { listProducts, createProduct } from "@/modules/products/controller/produ
 
 // API GET: Lấy danh sách sản phẩm
 export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const q = searchParams.get("q") ?? "";
+  const cat = searchParams.get("cat") ?? "all";
+  const page = Number(searchParams.get("page") ?? 1);
+  const pageSize = Number(searchParams.get("pageSize") ?? 12);
+  const min = Number(searchParams.get("min") ?? 0);
+  const max = Number(searchParams.get("max") ?? 0);
+
   try {
-    const { searchParams } = new URL(req.url);
-    const q = searchParams.get("q") || "";
+    let products = await listProducts({ q, cat });
 
-    // validate & normalize `cat`
-    const rawCat = (searchParams.get("cat") || "all").trim();
-    let cat: string | undefined;
-    if (rawCat && rawCat !== "all") {
-      // decode and allow simple slugs only (lowercase letters, numbers, hyphen, underscore)
-      const decoded = decodeURIComponent(rawCat);
-      if (!/^[a-z0-9\-_]+$/.test(decoded)) {
-        return NextResponse.json(
-          { error: "INVALID_CATEGORY" },
-          { status: 400 }
-        );
-      }
-      cat = decoded;
-    } else {
-      cat = undefined; // means "all"
-    }
+    // Lọc theo giá nếu có
+    if (min > 0) products = products.filter((p) => p.price >= min);
+    if (max > 0) products = products.filter((p) => p.price <= max);
 
-    const products = await listProducts({ q, cat });
-    // Đảm bảo luôn trả về array
+    const total = products.length;
+
+    // Phân trang
+    const start = (page - 1) * pageSize;
+    const end = start + pageSize;
+    const items = products.slice(start, end);
+
+    // Luôn trả về đúng format PageResp
     return NextResponse.json({
-      items: Array.isArray(products) ? products : products ? [products] : [],
+      items,
+      total,
+      page,
+      pageSize,
     });
-  } catch (err: unknown) {
-    console.error("/api/products GET error", err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json(
+      { error: message, items: [], total: 0, page: 1, pageSize },
+      { status: 500 }
+    );
   }
 }
 

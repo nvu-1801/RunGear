@@ -1,7 +1,6 @@
 // app/home/[id]/page.tsx
 import { notFound } from "next/navigation";
 import { getProductById } from "@/modules/products/controller/product.service";
-import { formatPriceVND } from "@/shared/price";
 import ProductDetailClient from "./product-detail.client";
 import { Suspense } from "react";
 import type { Product } from "@/modules/products/model/product-public";

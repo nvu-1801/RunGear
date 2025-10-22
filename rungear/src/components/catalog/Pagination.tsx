@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+type QueryParams = Record<string, string | number | boolean | null | undefined>;
+
 export function Pagination({
   currentPage,
   totalPages,
@@ -13,7 +15,7 @@ export function Pagination({
   start: number;
   end: number;
   total: number;
-  buildQuery: (extra: Record<string, any>) => any;
+  buildQuery: (extra: QueryParams) => QueryParams;
 }) {
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-2 text-sm text-gray-600">
