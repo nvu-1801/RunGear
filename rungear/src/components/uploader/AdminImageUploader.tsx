@@ -1,7 +1,7 @@
 // src/components/uploader/AdminImageUploader.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const sb = createClient(
@@ -22,75 +22,28 @@ export default function AdminImageUploader({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
-
-  // Kiểm tra user và role khi component mount
-  useEffect(() => {
-    (async () => {
-      try {
-        const {
-          data: { user },
-        } = await sb.auth.getUser();
-        if (user) {
-          const role = user.user_metadata?.role || null;
-          setUserRole(role);
-          console.log(
-            "User role:",
-            role,
-            "| User metadata:",
-            user.user_metadata
-          );
-        } else {
-          console.warn("User not logged in");
-        }
-      } catch (e) {
-        console.error("Failed to get user:", e);
-      }
-    })();
-  }, []);
 
   async function onSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
 
-    // Tạo preview ngay lập tức từ file local
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const result = ev.target?.result;
-      if (typeof result === "string") {
-        onPreview?.(result);
-      }
-    };
-    reader.readAsDataURL(f);
+    // Preview ngay lập tức
+    try {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const result = ev.target?.result;
+        if (typeof result === "string") onPreview?.(result);
+      };
+      reader.readAsDataURL(f);
+    } catch (err) {
+      console.warn("Preview generation failed:", err);
+    }
 
     setLoading(true);
     setError(null);
     setSuccess(false);
 
     try {
-      // Kiểm tra lại user trước khi upload
-      const {
-        data: { user },
-        error: userError,
-      } = await sb.auth.getUser();
-
-      console.log("Upload attempt - User:", user, "Error:", userError);
-
-      if (userError || !user) {
-        throw new Error("Bạn chưa đăng nhập. Vui lòng đăng nhập lại.");
-      }
-
-      const role = user.user_metadata?.role;
-      console.log("User role from metadata:", role);
-
-      if (role !== "admin") {
-        throw new Error(
-          `Bạn không có quyền upload. Role hiện tại: "${
-            role || "không có"
-          }". Cần role "admin".`
-        );
-      }
-
       const ext = (f.name.split(".").pop() || "jpg").toLowerCase();
       const filename = `${crypto.randomUUID()}.${ext}`;
       const path = `${folder}/${filename}`;
@@ -102,48 +55,56 @@ export default function AdminImageUploader({
         .upload(path, f, { cacheControl: "3600", upsert: false });
 
       if (uploadError) {
-        console.error("Upload error:", uploadError);
-        throw uploadError;
+        const msg =
+          (uploadError as any)?.message ??
+          JSON.stringify(uploadError) ??
+          String(uploadError);
+        throw new Error(`Upload error: ${msg}`);
       }
 
-      const { data } = sb.storage.from("product-images").getPublicUrl(path);
-      console.log("Upload success, public URL:", data.publicUrl);
+      // Lấy public URL
+      const { data: pubData } = sb.storage
+        .from("product-images")
+        .getPublicUrl(path);
+      const publicUrl =
+        (pubData as any)?.publicUrl ?? (pubData as any)?.public_url ?? "";
 
-      onUploaded?.({ path, publicUrl: data.publicUrl });
+      if (!publicUrl) {
+        onUploaded?.({ path, publicUrl: "" });
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 2500);
+        return;
+      }
+
+      onUploaded?.({ path, publicUrl });
       setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
+      setTimeout(() => setSuccess(false), 2500);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Upload failed";
+      const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
-      console.error("Upload failed:", e);
+      console.error("AdminImageUploader - upload failed:", e);
     } finally {
       setLoading(false);
+      // reset input value so same file can be selected again
+      try {
+        const input = document.getElementById(
+          "image-upload"
+        ) as HTMLInputElement | null;
+        if (input) input.value = "";
+      } catch {}
     }
   }
 
   return (
     <div className="space-y-3">
-      {/* Hiển thị role hiện tại */}
-      {userRole && (
-        <div className="text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded">
-          Role hiện tại: <span className="font-semibold">{userRole}</span>
-        </div>
-      )}
-
-      {/* Upload button styled */}
       <div className="relative">
         <label
           htmlFor="image-upload"
-          className={`
-            flex items-center justify-center gap-2 
-            px-4 py-2.5 rounded-lg border-2 border-dashed
-            cursor-pointer transition-all
-            ${
-              loading
-                ? "bg-gray-50 border-gray-300 cursor-not-allowed"
-                : "bg-white border-blue-300 hover:border-blue-500 hover:bg-blue-50"
-            }
-          `}
+          className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed cursor-pointer transition-all ${
+            loading
+              ? "bg-gray-50 border-gray-300 cursor-not-allowed"
+              : "bg-white border-blue-300 hover:border-blue-500 hover:bg-blue-50"
+          }`}
         >
           <svg
             className={`w-5 h-5 ${loading ? "text-gray-400" : "text-blue-600"}`}
@@ -176,7 +137,6 @@ export default function AdminImageUploader({
         />
       </div>
 
-      {/* Loading spinner */}
       {loading && (
         <div className="flex items-center gap-2 text-sm text-blue-600">
           <svg
@@ -203,7 +163,6 @@ export default function AdminImageUploader({
         </div>
       )}
 
-      {/* Success message */}
       {success && (
         <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 px-3 py-2 rounded-lg border border-green-200">
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -217,7 +176,6 @@ export default function AdminImageUploader({
         </div>
       )}
 
-      {/* Error message */}
       {error && (
         <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-200">
           <svg
@@ -235,11 +193,9 @@ export default function AdminImageUploader({
         </div>
       )}
 
-      {/* Helper text */}
       <div className="text-xs text-gray-500">
         <p>✓ Chỉ hỗ trợ file ảnh (JPG, PNG, GIF, WebP)</p>
         <p>✓ Ảnh sẽ được lưu vào Supabase Storage</p>
-        <p>✓ Cần role "admin" để upload</p>
       </div>
     </div>
   );
