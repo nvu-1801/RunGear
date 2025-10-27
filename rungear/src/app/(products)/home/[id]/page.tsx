@@ -2,7 +2,10 @@
 import { notFound } from "next/navigation";
 import { getProductById } from "@/modules/products/controller/product.service";
 import ProductDetailClient from "./product-detail.client";
+import { Suspense } from "react";
 import type { Product } from "@/modules/products/model/product-public";
+
+export const revalidate = 60; // ISR
 
 export default async function ProductDetailPage({
   params,
@@ -34,7 +37,14 @@ export default async function ProductDetailPage({
         row.categories_id == null ? null : String(row.categories_id),
     };
 
-    return <ProductDetailClient product={product} />;
+    return (
+      <main className="max-w-4xl mx-auto px-4 py-8">
+           {/* Partial hydration: phần động */}
+            <Suspense fallback={<div>Đang tải chức năng...</div>}>
+              <ProductDetailClient product={product} />
+            </Suspense>
+      </main>
+    );
   } catch (e: unknown) {
     if (
       typeof e === "object" &&

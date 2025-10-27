@@ -1,6 +1,8 @@
 // src/libs/auth/ensure-admin.ts
 // Dùng chung cho client (supabaseBrowser) và server (supabaseServer)
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 export type AdminCheckResult = {
   user: { id: string; email?: string | null };
 };
@@ -15,28 +17,48 @@ export class AdminAuthError extends Error {
 
 /**
  * Kiểm tra quyền admin.
- * - Ưu tiên profiles.is_admin (boolean)
+ * - Ưu tiên profiles.role = 'admin'
  * - Fallback app_metadata.role = 'admin' hoặc app_metadata.roles chứa 'admin'
  *
  * @param sb Supabase client (browser hoặc server)
  * @returns user { id, email }
  * @throws AdminAuthError("NOT_AUTHENTICATED" | "NOT_ADMIN" | "DB_ERROR")
  */
-export async function ensureAdmin(sb: any): Promise<AdminCheckResult> {
+export async function ensureAdmin(
+  sb: SupabaseClient
+): Promise<AdminCheckResult> {
   // đảm bảo session được refresh nếu cần
   await sb.auth.getSession().catch(() => {});
 
-  const { data: { user }, error: userErr } = await sb.auth.getUser();
+  const {
+    data: { user },
+    error: userErr,
+  } = await sb.auth.getUser();
   if (userErr) throw new AdminAuthError("DB_ERROR", userErr.message);
   if (!user) throw new AdminAuthError("NOT_AUTHENTICATED");
 
-  // Fallback 1: app_metadata
-  const meta = (user as any)?.app_metadata || {};
-  const metaRole = (meta.role as string | undefined)?.toLowerCase?.();
-  const metaRoles = Array.isArray(meta.roles) ? meta.roles.map((r: any) => String(r).toLowerCase()) : [];
-  const metaIsAdmin = metaRole === "admin" || metaRoles.includes("admin");
+  // Type guard for app_metadata
+  const meta: unknown = user.app_metadata;
+  let metaIsAdmin = false;
 
-  // Chính: profiles.is_admin
+  if (meta && typeof meta === "object") {
+    const metaObj = meta as Record<string, unknown>;
+
+    // Check role field
+    const metaRole =
+      typeof metaObj.role === "string" ? metaObj.role.toLowerCase() : undefined;
+
+    // Check roles array
+    const metaRoles = Array.isArray(metaObj.roles)
+      ? metaObj.roles
+          .filter((r): r is string => typeof r === "string")
+          .map((r) => r.toLowerCase())
+      : [];
+
+    metaIsAdmin = metaRole === "admin" || metaRoles.includes("admin");
+  }
+
+  // Chính: profiles.role
   const { data: prof, error: profErr } = await sb
     .from("profiles")
     .select("role")
@@ -48,7 +70,15 @@ export async function ensureAdmin(sb: any): Promise<AdminCheckResult> {
     throw new AdminAuthError("DB_ERROR", profErr.message);
   }
 
-  const isAdmin = (prof?.role === "admin") || metaIsAdmin;
+  // Type guard for profile role
+  const profileRole =
+    prof && typeof prof === "object" && "role" in prof
+      ? (prof as { role: unknown }).role
+      : null;
+
+  const isAdmin =
+    (typeof profileRole === "string" && profileRole === "admin") || metaIsAdmin;
+
   if (!isAdmin) throw new AdminAuthError("NOT_ADMIN");
 
   return { user: { id: user.id, email: user.email } };

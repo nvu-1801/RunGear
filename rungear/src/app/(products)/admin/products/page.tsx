@@ -19,7 +19,9 @@ type Product = {
 };
 
 type PageResp = {
-  items: (Product & { categories_id?: Category | null })[];
+  items: (Omit<Product, "categories_id"> & {
+    categories_id?: Category | null;
+  })[];
   total: number;
   page: number;
   pageSize: number;
@@ -56,29 +58,15 @@ export default function ProductManager() {
 
       const r = await fetch(url.toString(), { cache: "no-store" });
       if (!r.ok) throw new Error("Network response was not ok");
-      const json = (await r.json()) as PageResp | Product[];
-
-      if (Array.isArray(json)) {
-        const items = json as Product[];
-        const pageResp: PageResp = {
-          items: items.map((i) => ({
-            ...i,
-            categories_id: i.categories_id as any,
-          })),
-          total: items.length,
-          page,
-          pageSize,
-        };
-        setData(pageResp);
-        setAllPosts(items);
-        return pageResp;
-      } else {
-        setData(json);
-        setAllPosts(json.items as Product[]);
-        return json;
-      }
-    } catch (error) {
-      console.error("Fetch Error:", error);
+      const json = await r.json();
+      const pageResp = json as PageResp;
+      setData(pageResp);
+      setAllPosts(pageResp.items as unknown as Product[]);
+      return pageResp;
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Fetch failed";
+      console.error("Fetch Error:", errorMessage);
     } finally {
       setLoading(false);
     }
@@ -99,8 +87,14 @@ export default function ProductManager() {
   };
   const onDelete = async (id: string) => {
     if (!confirm("Delete this product?")) return;
-    await fetch(`/api/products/${id}`, { method: "DELETE" });
-    void fetchList();
+    try {
+      await fetch(`/api/products/${id}`, { method: "DELETE" });
+      void fetchList();
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Delete failed";
+      console.error("Delete Error:", errorMessage);
+    }
   };
   const onSaved = () => {
     setShowForm(false);

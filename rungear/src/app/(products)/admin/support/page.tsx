@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/libs/supabase/supabase-client";
 import SupportUserList from "@/components/support/SupportUserList";
 import SupportChatPanel from "@/components/support/SupportChatPanel";
-import { useAdminGuard } from "@/hooks/useAdminGuard";
 
 type SessionRow = {
   session_id: string;
@@ -17,26 +16,6 @@ export default function AdminSupportPage() {
 
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
-
-  const {
-    ready: adminReady,
-    user: adminUser,
-    error: adminError,
-  } = useAdminGuard({
-    supabaseClient: sb,
-    redirectTo: "/auth/sign-in",
-    next: "/admin/support",
-    onFail: (err) => console.error("Admin guard failed:", err?.code ?? err),
-  });
-
-  // debug ready state (use admin* names)
-  useEffect(() => {
-    console.debug("[AdminSupportPage] admin guard:", {
-      adminReady,
-      adminError,
-      adminUser,
-    });
-  }, [adminReady, adminError, adminUser]);
 
   function upsertAndBumpTop(s: SessionRow) {
     setSessions((prev) => {
@@ -52,7 +31,6 @@ export default function AdminSupportPage() {
   }
 
   useEffect(() => {
-    if (!adminReady) return;
     let cancelled = false;
 
     (async () => {
@@ -79,32 +57,46 @@ export default function AdminSupportPage() {
     return () => {
       cancelled = true;
     };
-  }, [adminReady, sb]);
+  }, [sb]);
 
   useEffect(() => {
-    if (!adminReady) return;
-
     const channel = sb
       .channel("support_messages_admin")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "support_messages" },
         (payload) => {
-          const d = payload.new as SessionRow;
-          if (!d?.session_id) return;
+          const newData: unknown = payload.new;
+
+          if (
+            !newData ||
+            typeof newData !== "object" ||
+            !("session_id" in newData) ||
+            typeof newData.session_id !== "string"
+          ) {
+            return;
+          }
+
+          const sessionData = newData as {
+            session_id: string;
+            user_id?: string | null;
+            created_at?: string;
+          };
+
           upsertAndBumpTop({
-            session_id: d.session_id,
-            user_id: (d as any).user_id ?? null,
-            created_at: (d as any).created_at,
+            session_id: sessionData.session_id,
+            user_id: sessionData.user_id ?? null,
+            created_at: sessionData.created_at,
           });
         }
       )
       .subscribe();
 
+    // Cleanup đúng cách
     return () => {
       sb.removeChannel(channel);
     };
-  }, [adminReady, sb]);
+  }, [sb]);
 
   useEffect(() => {
     if (!selectedSession && sessions.length > 0) {
@@ -115,31 +107,15 @@ export default function AdminSupportPage() {
   return (
     <div className="flex h-[75vh] mt-8 max-w-7xl mx-auto px-4 border rounded-lg overflow-hidden shadow-lg bg-white min-h-0">
       <div className="w-1/3 border-r bg-gray-50">
-        {adminReady && !adminError ? (
-          <SupportUserList
-            sessions={sessions}
-            selectedSession={selectedSession}
-            onSelect={setSelectedSession}
-          />
-        ) : (
-          <div className="h-full grid place-items-center text-sm text-gray-500 p-4">
-            {!adminReady
-              ? "Đang kiểm tra quyền admin…"
-              : "Không có quyền truy cập trang admin."}
-          </div>
-        )}
+        <SupportUserList
+          sessions={sessions}
+          selectedSession={selectedSession}
+          onSelect={setSelectedSession}
+        />
       </div>
 
       <div className="flex-1 min-h-0">
-        {!adminReady ? (
-          <div className="h-full flex items-center justify-center text-gray-400 text-lg">
-            Đang kiểm tra quyền admin…
-          </div>
-        ) : adminError ? (
-          <div className="h-full flex items-center justify-center text-red-600 text-sm">
-            Không có quyền truy cập trang admin.
-          </div>
-        ) : selectedSession ? (
+        {selectedSession ? (
           <SupportChatPanel key={selectedSession} sessionId={selectedSession} />
         ) : (
           <div className="h-full flex items-center justify-center text-gray-400 text-lg">

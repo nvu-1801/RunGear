@@ -33,7 +33,7 @@ export default function CartDrawer() {
       <aside
         className={`fixed right-0 top-0 h-full w-[380px] max-w-[95vw] bg-white shadow-2xl border-l transition-transform ${
           isOpen ? "translate-x-0" : "translate-x-full"
-        } z-[81] rounded-l-2xl flex flex-col`}
+        } z-[179] rounded-l-2xl flex flex-col`}
         aria-hidden={!isOpen}
       >
         {/* Header */}

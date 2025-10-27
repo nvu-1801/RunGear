@@ -20,9 +20,8 @@ type ChatMessage = {
   createdAt: string;
 };
 
-function isValidSessionId(s: unknown) {
+function isValidSessionId(s: unknown): s is string {
   if (typeof s !== "string") return false;
-  // allow UUID-like or timestamp-based ids with safe chars
   return /^[A-Za-z0-9\-_:.]+$/.test(s) && s.length > 5;
 }
 
@@ -31,19 +30,28 @@ function useChatSession(): string | null {
   useEffect(() => {
     try {
       let cur = localStorage.getItem("rg_chat_session");
-      // reject clearly invalid values like "[]" or serialized arrays/objects
       if (!isValidSessionId(cur)) {
-        cur = (crypto as any).randomUUID?.() ?? `${Date.now()}`;
+        // Type guard for crypto.randomUUID
+        const cryptoObj = typeof crypto !== "undefined" ? crypto : null;
+        const hasRandomUUID =
+          cryptoObj &&
+          typeof cryptoObj === "object" &&
+          "randomUUID" in cryptoObj &&
+          typeof (cryptoObj as { randomUUID?: unknown }).randomUUID ===
+            "function";
+
+        cur = hasRandomUUID
+          ? (cryptoObj as { randomUUID: () => string }).randomUUID()
+          : `${Date.now()}`;
         cur = `${cur}-sess`;
         try {
           localStorage.setItem("rg_chat_session", cur);
         } catch {
-          // ignore quota / privacy errors
+          // ignore
         }
       }
       setSid(cur);
-    } catch (err) {
-      // fallback: generate ephemeral id but do not persist
+    } catch (err: unknown) {
       const fallback = `${Date.now()}-sess`;
       setSid(fallback);
     }
@@ -58,26 +66,37 @@ export default function SupportChat() {
 
   const [initial, setInitial] = useState<ChatMessage[]>([]);
   const [username, setUsername] = useState<string>("Guest");
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // prevent duplicate sends: remember last send signature and timestamp
   const lastSentRef = useRef<{ sig: string; ts: number } | null>(null);
   const sendingRef = useRef(false);
 
-  // Lấy tên hiển thị (nếu user đã đăng nhập có email)
+  // Lấy thông tin user (id + email) trước để map lịch sử đúng vị trí
   useEffect(() => {
     (async () => {
       try {
         const { data } = await sb.auth.getUser();
-        const email = data.user?.email;
-        if (email) setUsername(email);
+
+        // Type guard for user data
+        if (
+          data &&
+          typeof data === "object" &&
+          "user" in data &&
+          data.user &&
+          typeof data.user === "object"
+        ) {
+          const user = data.user as { id?: string; email?: string };
+          if (user.email) setUsername(user.email);
+          if (user.id) setCurrentUserId(user.id);
+        }
       } catch (e: unknown) {
-        // safe ignore
-        console.error("getUser error", e);
+        // ignore
       }
     })();
   }, [sb]);
 
-  // Load lịch sử từ DB
+  // Load lịch sử từ DB — chạy sau khi đã biết currentUserId (hoặc ít nhất sid)
   useEffect(() => {
     if (!sid) return;
     let mounted = true;
@@ -91,26 +110,45 @@ export default function SupportChat() {
 
         if (!mounted) return;
         if (error) {
-          console.error("load messages error:", error);
           setInitial([]);
           return;
         }
-        const mapped = (data as DBMsg[]).map((m) => ({
-          id: m.id,
-          content: m.text,
-          user: { name: m.role === "admin" ? "Support" : "You" },
-          createdAt: m.created_at,
-        }));
+
+        // Type guard for data
+        if (!Array.isArray(data)) {
+          setInitial([]);
+          return;
+        }
+
+        // map: xác định "mình" nếu message.session_id === sid  OR message.user_id === currentUserId
+        const mapped = (data as DBMsg[]).map((m) => {
+          const isMine =
+            (m.session_id && sid && m.session_id === sid) ||
+            (m.user_id && currentUserId && m.user_id === currentUserId);
+
+          const name = isMine
+            ? username ?? "You"
+            : m.role === "admin"
+            ? "Support"
+            : "User";
+
+          return {
+            id: m.id,
+            content: m.text,
+            user: { name },
+            createdAt: m.created_at,
+          } as ChatMessage;
+        });
+
         setInitial(mapped);
       } catch (e: unknown) {
-        console.error("load messages unexpected error:", e);
         if (mounted) setInitial([]);
       }
     })();
     return () => {
       mounted = false;
     };
-  }, [sb, sid]);
+  }, [sb, sid, currentUserId, username]);
 
   // Gửi từ UI → ghi DB role=user
   const handleMessage = useCallback(
@@ -142,14 +180,11 @@ export default function SupportChat() {
           text: last.content,
         });
 
-        if (error) {
-          console.error("Insert failed:", error.message ?? error);
-        } else {
-          // record successful send
+        if (!error) {
           lastSentRef.current = { sig, ts: Date.now() };
         }
       } catch (e: unknown) {
-        console.error("handleMessage error:", e);
+        // ignore
       } finally {
         sendingRef.current = false;
       }
