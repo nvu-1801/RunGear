@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/components/auth/AuthContext";
 import {
   normalizeImages,
   productImageUrl,
@@ -35,19 +36,13 @@ export default function ProductDetailClient({ product }: { product: Product }) {
   const [zoomPos, setZoomPos] = useState({ x: 0, y: 0 });
   const imgRef = useRef<HTMLImageElement>(null);
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const { user, isAdmin } = useAuth();
+  const [isLoggedIn, setIsLoggedIn] = useState(Boolean(user));
   const [showLoginModal, setShowLoginModal] = useState(false);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const { data, error } = await sb.auth.getUser();
-        setIsLoggedIn(Boolean(data?.user));
-      } catch {
-        setIsLoggedIn(false);
-      }
-    })();
-  }, [sb]);
+    setIsLoggedIn(Boolean(user));
+  }, [user]);
 
   const mainSrc = images[active] ?? getImageUrl(null);
 
