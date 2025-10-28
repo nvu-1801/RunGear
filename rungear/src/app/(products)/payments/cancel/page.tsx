@@ -1,189 +1,146 @@
 "use client";
 
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { formatPriceVND } from "@/shared/price";
 
-type OrderData = {
-  order_code: string;
-  amount?: number;
-  total?: number;
-};
+type OrderStatus = "PENDING" | "PROCESSING" | "PAID" | "CANCELLED" | "FAILED";
 
-type ApiResponse = {
-  data?: unknown;
-};
-
-export default function PaymentCancelPage() {
+export default function CancelPage() {
   const sp = useSearchParams();
-  const orderCode = sp.get("orderCode") ?? sp.get("order_id") ?? "N/A";
-  const reason =
-    sp.get("reason") ??
-    sp.get("message") ??
-    "Giao dịch đã bị huỷ hoặc thất bại.";
-  const [amount, setAmount] = useState<number>(0);
+  const orderCode = sp?.get("orderCode") ?? "N/A";
+  const [amount, setAmount] = useState(0);
+  const [status, setStatus] = useState<OrderStatus | "UNKNOWN">("UNKNOWN");
 
   useEffect(() => {
-    // Gọi API lấy chi tiết đơn hàng theo orderCode
     if (!orderCode || orderCode === "N/A") return;
+
     (async () => {
       try {
-        const res = await fetch(`/api/orders?order_code=${orderCode}`);
-        const data: ApiResponse = await res.json();
-
-        // Type guard để kiểm tra data.data là array
-        if (!Array.isArray(data.data)) {
-          setAmount(0);
-          return;
-        }
-
-        // Tìm đơn hàng đúng mã
-        const order = data.data.find((item: unknown): item is OrderData => {
-          if (!item || typeof item !== "object") return false;
-          const o = item as Record<string, unknown>;
-          return (
-            typeof o.order_code === "string" &&
-            String(o.order_code) === String(orderCode)
-          );
+        const res = await fetch(`/api/orders/${orderCode}`, {
+          cache: "no-store",
         });
+        const json = await res.json();
 
-        if (!order) {
-          setAmount(0);
-          return;
-        }
+        if (json?.success && json?.data) {
+          const o = json.data as {
+            status?: OrderStatus;
+            amount?: number;
+            total?: number;
+          };
 
-        // Lấy amount hoặc total
-        if (typeof order.amount === "number") {
-          setAmount(order.amount);
-        } else if (typeof order.total === "number") {
-          setAmount(order.total);
-        } else {
-          setAmount(0);
+          if (typeof o.amount === "number") setAmount(o.amount);
+          else if (typeof o.total === "number") setAmount(o.total);
+
+          if (o?.status) setStatus(o.status);
         }
-      } catch (error: unknown) {
-        console.error("Failed to fetch order:", error);
-        setAmount(0);
+      } catch (err) {
+        console.error("Fetch order error:", err);
       }
     })();
   }, [orderCode]);
 
   return (
-    <main className="min-h-dvh bg-gradient-to-b from-rose-50 to-white">
-      <div className="max-w-3xl mx-auto px-4 py-12">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-            Thanh toán không thành công
-          </h1>
+    <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-orange-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-12 max-w-2xl w-full bg-red-50 border-2 border-red-200 animate-in fade-in zoom-in-95 slide-in-from-bottom-8 duration-700">
+        {/* Icon */}
+        <div className="mx-auto w-24 h-24 rounded-full bg-gradient-to-br from-red-400 to-rose-400 flex items-center justify-center text-5xl mb-6 shadow-lg animate-in zoom-in-95 duration-700 delay-150">
+          ❌
+        </div>
+
+        {/* Title */}
+        <h1 className="text-3xl md:text-4xl font-bold text-red-700 text-center mb-3 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
+          Thanh toán đã bị hủy
+        </h1>
+
+        {/* Description */}
+        <p className="text-gray-600 text-center mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
+          Giao dịch của bạn đã bị hủy. Bạn có thể thử lại hoặc quay về trang
+          chủ.
+        </p>
+
+        {/* Order Details */}
+        <div className="space-y-4 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-[400ms]">
+          <div className="flex items-center justify-between p-4 rounded-xl bg-white border-2 border-gray-200">
+            <span className="text-sm font-medium text-gray-700">
+              Mã đơn hàng:
+            </span>
+            <span className="text-lg font-bold text-gray-900">
+              #{orderCode}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200">
+            <span className="text-sm font-medium text-gray-700">Số tiền:</span>
+            <span className="text-xl font-bold bg-gradient-to-r from-red-600 to-rose-600 bg-clip-text text-transparent">
+              {formatPriceVND(amount)}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between p-4 rounded-xl bg-white border-2 border-gray-200">
+            <span className="text-sm font-medium text-gray-700">
+              Trạng thái:
+            </span>
+            <span className="font-semibold text-red-700">
+              {status === "CANCELLED" || status === "FAILED"
+                ? "Đã hủy"
+                : "Chưa thanh toán"}
+            </span>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-col sm:flex-row gap-3 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-500">
           <Link
-            href="/"
-            className="text-sm text-rose-700 hover:text-rose-900 underline-offset-4 hover:underline font-medium"
+            href={`/checkout?order=${orderCode}`}
+            className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 text-white font-semibold hover:from-orange-600 hover:to-red-600 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
           >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+            Thử lại thanh toán
+          </Link>
+
+          <Link
+            href="/home"
+            className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-white text-gray-700 font-semibold hover:bg-gray-50 border-2 border-gray-200 transition-all duration-300 hover:border-gray-300 hover:scale-105 active:scale-95"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+              />
+            </svg>
             Về trang chủ
           </Link>
         </div>
 
-        {/* Card */}
-        <div className="rounded-2xl border bg-white/90 backdrop-blur shadow-xl p-8">
-          {/* Icon + Title */}
-          <div className="flex items-center gap-4">
-            <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-100 ring-1 ring-rose-200">
-              {/* XCircle Icon */}
-              <svg
-                viewBox="0 0 24 24"
-                className="h-7 w-7 text-rose-600"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="12" cy="12" r="9"></circle>
-                <path
-                  d="M15 9l-6 6M9 9l6 6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-            <div>
-              <h2 className="text-2xl font-semibold text-gray-900">
-                Rất tiếc!
-              </h2>
-              <p className="text-gray-600">{reason}</p>
-            </div>
-          </div>
-
-          {/* Order Info */}
-          <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="rounded-xl border p-4">
-              <div className="text-xs uppercase tracking-wide text-gray-500">
-                Mã đơn
-              </div>
-              <div className="mt-1 font-semibold text-gray-900">
-                {orderCode}
-              </div>
-            </div>
-            <div className="rounded-xl border p-4">
-              <div className="text-xs uppercase tracking-wide text-gray-500">
-                Trạng thái
-              </div>
-              <div className="mt-1 font-semibold text-rose-700">
-                Đã huỷ / Thất bại
-              </div>
-            </div>
-            <div className="rounded-xl border p-4">
-              <div className="text-xs uppercase tracking-wide text-gray-500">
-                Số tiền
-              </div>
-              <div className="mt-1 font-semibold text-gray-900">
-                {formatPriceVND
-                  ? formatPriceVND(amount)
-                  : new Intl.NumberFormat("vi-VN", {
-                      style: "currency",
-                      currency: "VND",
-                    }).format(amount)}
-              </div>
-            </div>
-          </div>
-
-          {/* Suggestions */}
-          <ul className="mt-6 text-sm text-gray-600 list-disc pl-5 space-y-1">
-            <li>Kiểm tra lại kết nối internet hoặc số dư/ hạn mức thẻ.</li>
-            <li>
-              Nếu bạn dùng VietQR/ ví điện tử, hãy thử lại trong 5–10 phút.
-            </li>
-            <li>Liên hệ ngân hàng/ ví để biết lý do giao dịch bị từ chối.</li>
-          </ul>
-
-          {/* Actions */}
-          <div className="mt-8 flex flex-col sm:flex-row gap-3">
-            <Link
-              href="/payments"
-              className="inline-flex items-center justify-center rounded-xl bg-rose-600 text-white px-5 py-3 font-semibold shadow hover:bg-rose-700 transition"
-            >
-              Thử thanh toán lại
-            </Link>
-            <Link
-              href="/home"
-              className="inline-flex items-center justify-center rounded-xl border border-rose-600 text-rose-700 px-5 py-3 font-semibold hover:bg-rose-50 transition"
-            >
-              Tiếp tục mua sắm
-            </Link>
-            <Link
-              href="/support"
-              className="inline-flex items-center justify-center rounded-xl border px-5 py-3 font-semibold hover:bg-gray-50 transition"
-            >
-              Liên hệ hỗ trợ
-            </Link>
-          </div>
-
-          {/* Note */}
-          <p className="mt-6 text-xs text-gray-500">
-            Nếu số tiền đã bị trừ nhưng trạng thái vẫn thất bại, vui lòng liên
-            hệ hỗ trợ để được kiểm tra và hoàn tiền (nếu có).
-          </p>
-        </div>
+        {/* Help text */}
+        <p className="text-xs text-gray-500 text-center mt-6">
+          Cần hỗ trợ?{" "}
+          <Link href="/contact" className="text-blue-600 hover:underline">
+            Liên hệ với chúng tôi
+          </Link>
+        </p>
       </div>
-    </main>
+    </div>
   );
 }
