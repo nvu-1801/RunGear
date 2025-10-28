@@ -110,38 +110,46 @@ export default async function ProductsPage({
 
   return (
     <main className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 py-6 md:py-10">
-      {/* Banner: responsive aspect + fallback */}
-      <div className="mb-6">
+      {/* Banner: Fade in + scale animation */}
+      <div className="mb-6 animate-in fade-in zoom-in-95 duration-700 slide-in-from-top-4">
         <BannerSlider
           images={bannerImages.length ? bannerImages : ["/placeholder.png"]}
-          className="rounded-2xl overflow-hidden"
+          className="rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl transition-shadow duration-500"
           aspect="16/6"
         />
       </div>
 
-      {/* Search & Filter (desktop + compact mobile) */}
-      <SearchFilterForm q={q} cat={cat} min={min} max={max} />
+      {/* Search & Filter: Slide in from left with delay */}
+      <div className="animate-in fade-in slide-in-from-left-8 duration-700 delay-150">
+        <SearchFilterForm q={q} cat={cat} min={min} max={max} />
+      </div>
 
-      {/* Tabs Filter */}
-      <div className="mb-6 md:mb-8">
+      {/* Tabs Filter: Slide in from right with delay */}
+      <div className="mb-6 md:mb-8 animate-in fade-in slide-in-from-right-8 duration-700 delay-300">
         <CategoryTabs active={cat} q={q} min={min} max={max} pathname="/home" />
       </div>
 
-      {/* Product Grid: responsive columns + card adjustments */}
-      <ProductGridClient q={q} cat={cat} min={min} max={max} />
+      {/* Product Grid: Fade in + slide up with delay */}
+      <div className="animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-[400ms]">
+        <ProductGridClient q={q} cat={cat} min={min} max={max} />
+      </div>
 
-      {/* Pagination: responsive wrap */}
-      <Pagination
-        currentPage={currentPage}
-        totalPages={totalPages}
-        start={start}
-        end={end}
-        total={total}
-        buildQuery={buildQuery}
-      />
+      {/* Pagination: Fade in with delay */}
+      <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 delay-[600ms]">
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          start={start}
+          end={end}
+          total={total}
+          buildQuery={buildQuery}
+        />
+      </div>
 
-      {/* Blog / Content */}
-      <BlogSection />
+      {/* Blog / Content: Fade in last */}
+      <div className="animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-[800ms]">
+        <BlogSection />
+      </div>
     </main>
   );
 }

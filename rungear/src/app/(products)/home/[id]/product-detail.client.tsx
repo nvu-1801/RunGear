@@ -12,12 +12,13 @@ import {
 import { formatPriceVND } from "@/shared/price";
 import { useCart } from "@/components/cart/cart-store";
 import { supabaseBrowser } from "@/libs/supabase/supabase-client";
+import { getAllImageUrls, getImageUrl } from "@/modules/products/lib/image-url";
 
 export default function ProductDetailClient({ product }: { product: Product }) {
   const router = useRouter();
   const sb = supabaseBrowser();
   const images = useMemo(
-    () => normalizeImages(product.images),
+    () => getAllImageUrls(product.images ?? null),
     [product.images]
   );
   const { addItem, open } = useCart();
@@ -48,9 +49,7 @@ export default function ProductDetailClient({ product }: { product: Product }) {
     })();
   }, [sb]);
 
-  const mainSrc = images[active]
-    ? imagePathToUrl(images[active])
-    : productImageUrl(product) ?? "/placeholder.png";
+  const mainSrc = images[active] ?? getImageUrl(null);
 
   function changeQty(delta: number) {
     setQty((q) => Math.max(1, q + delta));
@@ -135,13 +134,12 @@ export default function ProductDetailClient({ product }: { product: Product }) {
           </div>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-12">
-          {/* Gallery */}
+        <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-start">
+          {/* Left: Gallery */}
           <div>
             <div
-              className="relative aspect-square rounded-2xl border overflow-hidden bg-white shadow-xl"
-              onMouseEnter={() => setZoom(true)}
-              onMouseLeave={() => setZoom(false)}
+              ref={imgRef}
+              className="relative w-full aspect-square rounded-2xl overflow-hidden bg-gradient-to-br from-gray-50 to-white border border-gray-200 cursor-zoom-in"
               onMouseMove={(e) => {
                 if (!imgRef.current) return;
                 const rect = imgRef.current.getBoundingClientRect();
@@ -149,13 +147,16 @@ export default function ProductDetailClient({ product }: { product: Product }) {
                 const y = ((e.clientY - rect.top) / rect.height) * 100;
                 setZoomPos({ x, y });
               }}
+              onMouseEnter={() => setZoom(true)}
+              onMouseLeave={() => setZoom(false)}
             >
               <img
-                ref={imgRef}
                 src={mainSrc}
                 alt={product.name}
-                className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-                draggable={false}
+                className="w-full h-full object-contain"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = getImageUrl(null);
+                }}
               />
               {zoom && (
                 <div
@@ -181,7 +182,6 @@ export default function ProductDetailClient({ product }: { product: Product }) {
             {images.length > 1 && (
               <ul className="mt-4 grid grid-cols-5 gap-3">
                 {images.map((img, i) => {
-                  const src = imagePathToUrl(img);
                   const activeCls =
                     i === active
                       ? "ring-2 ring-blue-600 scale-105"
@@ -194,9 +194,13 @@ export default function ProductDetailClient({ product }: { product: Product }) {
                         aria-label={`Ảnh ${i + 1}`}
                       >
                         <img
-                          src={src}
+                          src={img}
                           alt={`${product.name} ${i + 1}`}
                           className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              getImageUrl(null);
+                          }}
                         />
                       </button>
                     </li>

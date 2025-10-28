@@ -6,6 +6,20 @@ import { supabaseServer } from "@/libs/supabase/supabase-server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Helper: convert order_code to safe number for bigint comparison
+function asOrderCodeNumber(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) {
+    const n = Number(v.trim());
+    if (n > Number.MAX_SAFE_INTEGER || n < Number.MIN_SAFE_INTEGER) {
+      console.warn("order_code exceeds safe integer range:", n);
+      return null;
+    }
+    return n;
+  }
+  return null;
+}
+
 function buildSignatureData(obj: Record<string, unknown>): string {
   const keys = Object.keys(obj).sort();
   return keys
@@ -34,6 +48,7 @@ export async function POST(req: NextRequest) {
       !("data" in payload) ||
       !("signature" in payload)
     ) {
+      console.error("❌ Webhook: missing data/signature");
       return NextResponse.json(
         { ok: false, reason: "missing data/signature" },
         { status: 400 }
@@ -47,14 +62,23 @@ export async function POST(req: NextRequest) {
     };
 
     if (!data || !signature) {
+      console.error("❌ Webhook: empty data or signature");
       return NextResponse.json(
         { ok: false, reason: "missing data/signature" },
         { status: 400 }
       );
     }
 
-    const checksumKey = process.env.PAYOS_CHECKSUM_KEY!;
-    // ✅ PayOS yêu cầu ký trên OBJECT data, sort key alphabet, "key=value&..."
+    // Verify signature
+    const checksumKey = process.env.PAYOS_CHECKSUM_KEY;
+    if (!checksumKey) {
+      console.error("❌ Webhook: PAYOS_CHECKSUM_KEY not configured");
+      return NextResponse.json(
+        { ok: false, reason: "server misconfigured" },
+        { status: 500 }
+      );
+    }
+
     const raw = buildSignatureData(data);
     const expected = crypto
       .createHmac("sha256", checksumKey)
@@ -63,21 +87,40 @@ export async function POST(req: NextRequest) {
 
     if (signature !== expected) {
       console.error("❌ Invalid webhook signature");
+      console.error("Expected:", expected);
+      console.error("Received:", signature);
       return NextResponse.json(
         { ok: false, reason: "invalid signature" },
+        { status: 401 }
+      );
+    }
+
+    console.log("✅ Webhook signature verified");
+
+    // Extract order data
+    const { orderCode, amount, paymentLinkId, status } = data;
+
+    // Convert orderCode to safe number for bigint comparison
+    const codeNum = asOrderCodeNumber(orderCode);
+    if (codeNum === null) {
+      console.error("❌ Invalid orderCode:", orderCode);
+      return NextResponse.json(
+        { ok: false, reason: "invalid orderCode" },
         { status: 400 }
       );
     }
 
-    // --- Hợp lệ: đối soát và cập nhật DB ---
-    const { orderCode, amount, paymentLinkId, status } = data;
-    const supabase = await supabaseServer();
-
-    // Map trạng thái
-    // Ưu tiên 'status' từ data; fallback 'code' === "00"
+    // Determine success status
+    // PayOS uses 'status' === "PAID" or 'code' === "00"
     const success = status === "PAID" || code === "00";
     const orderStatus = success ? "PAID" : "FAILED";
 
+    console.log(
+      `📦 Processing order #${codeNum}: status=${orderStatus}, amount=${amount}`
+    );
+
+    // Update database with idempotent protection
+    const supabase = await supabaseServer();
     const { error } = await supabase
       .from("orders")
       .update({
@@ -85,13 +128,12 @@ export async function POST(req: NextRequest) {
         paid_at: success ? new Date().toISOString() : null,
         payment_link_id:
           typeof paymentLinkId === "string" ? paymentLinkId : null,
-        // OPTIONAL: lưu amount bạn nhận được để log/đối soát
-        // paid_amount: typeof amount === "number" ? amount : 0
       })
-      .eq("order_code", String(orderCode));
+      .eq("order_code", codeNum) // ✅ bigint comparison with number
+      .neq("status", "PAID"); // ✅ idempotent: don't overwrite already paid orders
 
     if (error) {
-      console.error("❌ Update order error:", error);
+      console.error("❌ Database update error:", error);
       return NextResponse.json(
         { ok: false, error: error.message },
         { status: 500 }
@@ -99,10 +141,15 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(
-      `✅ Order ${orderCode} updated to ${orderStatus} (amount=${amount})`
+      `✅ Order #${codeNum} updated to ${orderStatus} (amount=${amount})`
     );
-    // Webhook chỉ cần trả 200/JSON. KHÔNG redirect ở đây (PayOS không mở trình duyệt người dùng).
-    return NextResponse.json({ ok: true });
+
+    // Return success response to PayOS
+    return NextResponse.json({
+      ok: true,
+      orderCode: codeNum,
+      status: orderStatus,
+    });
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : "internal_error";
     console.error("❌ Webhook error:", err);

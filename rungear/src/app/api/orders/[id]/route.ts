@@ -1,6 +1,63 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/libs/supabase/supabase-server";
 
+function asOrderCodeNumber(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) {
+    const n = Number(v.trim());
+    if (n > Number.MAX_SAFE_INTEGER || n < Number.MIN_SAFE_INTEGER) {
+      console.warn("order_code exceeds safe integer range:", n);
+      return null;
+    }
+    return n;
+  }
+  return null;
+}
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  // Await params in Next.js 15+
+  const { id } = await params;
+
+  const supabase = await supabaseServer();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized" },
+      { status: 401 }
+    );
+  }
+
+  const codeNum = asOrderCodeNumber(id);
+  if (codeNum === null) {
+    return NextResponse.json(
+      { success: false, error: "Invalid order code" },
+      { status: 400 }
+    );
+  }
+
+  const { data, error } = await supabase
+    .from("orders")
+    .select("*")
+    .eq("user_id", user.id)
+    .eq("order_code", codeNum) // ✅ bigint so với number
+    .single();
+
+  if (error) {
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 400 }
+    );
+  }
+
+  return NextResponse.json({ success: true, data });
+}
+
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

@@ -17,7 +17,7 @@ type ProductInput = {
   name: string;
   price: number;
   stock: number;
-  images?: string | null; // single image url
+  images?: string | null;
   status: "draft" | "active" | "hidden";
   categories_id:
     | "1d4478e7-c9d2-445e-8520-14dae73aac68"
@@ -33,6 +33,7 @@ type Props = {
   onSaved: () => void;
 };
 
+
 const validationSchema = Yup.object({
   name: Yup.string().trim().required("Tên sản phẩm bắt buộc"),
   price: Yup.number().min(0, "Giá phải >= 0").required("Giá bắt buộc"),
@@ -42,8 +43,8 @@ const validationSchema = Yup.object({
   images: Yup.string()
     .nullable()
     .test("is-url-or-empty", "Phải là URL hợp lệ hoặc để trống", (v) => {
-      if (!v || v.trim() === "") return true; // cho phép rỗng
-      return /^https?:\/\/.+/i.test(v); // check có http/https
+      if (!v || v.trim() === "") return true;
+      return /^https?:\/\/.+/i.test(v);
     }),
 });
 
@@ -65,6 +66,37 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
   const [previewSrc, setPreviewSrc] = useState<string | null>(
     initialValues.images ?? null
   );
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null); // null = checking
+
+  // Check quyền admin khi mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/check", { credentials: "include" });
+        if (!res.ok) {
+          setIsAdmin(false);
+          return;
+        }
+        const data = (await res.json()) as {
+          user?: {
+            id?: string;
+            email?: string;
+            role?: string | null;
+          } | null;
+        };
+
+        // Check role === "admin"
+        const userRole = data?.user?.role;
+        setIsAdmin(userRole === "admin");
+
+        console.log("ProductForm - user role:", userRole);
+        console.log("ProductForm - isAdmin:", userRole === "admin");
+      } catch (err) {
+        console.error("Failed to check auth:", err);
+        setIsAdmin(false);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     setPreviewSrc(initialValues.images ?? null);
@@ -94,10 +126,14 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        credentials: "include",
       });
 
       if (!r.ok) {
-        const j = await r.json().catch(() => ({}));
+        const j = (await r.json().catch(() => ({}))) as {
+          error?: string;
+          message?: string;
+        };
         throw new Error(j?.error ?? j?.message ?? "Save failed");
       }
 
@@ -210,7 +246,7 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
                   </label>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="md:col-span-2 flex flex-col gap-2">
-                      {/* URL input (controlled) */}
+                      {/* URL input */}
                       <input
                         name="images"
                         placeholder="URL ảnh (tự động điền sau khi upload)"
@@ -228,31 +264,91 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
                         }}
                       />
 
-                      {/* Upload component */}
-                      <AdminImageUploader
-                        folder={`products/${
-                          initial?.id || crypto.randomUUID()
-                        }`}
-                        onUploaded={(file) => {
-                          formik.setFieldValue("images", file.publicUrl);
-                          setPreviewSrc(file.publicUrl);
-                        }}
-                      />
+                      {/* Upload component with permission check */}
+                      {isAdmin === null && (
+                        <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-lg border">
+                          <svg
+                            className="animate-spin h-4 w-4"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            ></path>
+                          </svg>
+                          <span>Đang kiểm tra quyền admin...</span>
+                        </div>
+                      )}
+
+                      {isAdmin === false && (
+                        <div className="flex items-start gap-2 text-sm text-orange-600 bg-orange-50 px-3 py-2 rounded-lg border border-orange-200">
+                          <svg
+                            className="w-4 h-4 mt-0.5 flex-shrink-0"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          <div className="flex-1">
+                            <p className="font-semibold">
+                              Không có quyền upload
+                            </p>
+                            <p className="text-xs">
+                              Bạn cần role <strong>"admin"</strong> trong bảng
+                              profiles để upload ảnh. Vui lòng liên hệ quản trị
+                              viên.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {isAdmin === true && (
+                        <AdminImageUploader
+                          folder={`products/${
+                            initial?.id || crypto.randomUUID()
+                          }`}
+                          onPreview={(previewUrl) => {
+                            setPreviewSrc(previewUrl);
+                          }}
+                          onUploaded={(file) => {
+                            formik.setFieldValue("images", file.publicUrl);
+                            setPreviewSrc(file.publicUrl);
+                          }}
+                        />
+                      )}
 
                       <button
                         type="button"
-                        className="px-3 py-2 rounded-md border text-sm self-start"
+                        className="px-3 py-2 rounded-md border text-sm self-start hover:bg-gray-50 transition"
                         onClick={() => {
                           formik.setFieldValue("images", "");
                           setPreviewSrc(null);
                         }}
                       >
-                        Clear
+                        Xóa ảnh
                       </button>
 
                       <div className="text-xs text-gray-500">
-                        Upload ảnh lên bucket hoặc dán URL thủ công. Ảnh sẽ hiển
-                        thị preview.
+                        {isAdmin === true
+                          ? "✓ Upload ảnh lên storage hoặc dán URL thủ công."
+                          : isAdmin === false
+                          ? "⚠️ Chỉ có thể dán URL ảnh thủ công."
+                          : "⏳ Đang kiểm tra quyền..."}
                       </div>
                     </div>
 
@@ -265,7 +361,7 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
                           className="max-h-full object-contain"
                         />
                       ) : (
-                        <div className="text-xs text-gray-400">Preview</div>
+                        <div className="text-xs text-gray-400">Chưa có ảnh</div>
                       )}
                     </div>
                   </div>
@@ -291,21 +387,36 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
               </div>
 
               {submitError && (
-                <div className="px-4 text-sm text-red-600">{submitError}</div>
+                <div className="px-4 py-2 mb-2">
+                  <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-200">
+                    <svg
+                      className="w-4 h-4 mt-0.5 flex-shrink-0"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    <span className="flex-1">{submitError}</span>
+                  </div>
+                </div>
               )}
 
               <div className="p-4 border-t flex items-center justify-end gap-2 sticky bottom-0 bg-white">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 rounded-lg border"
+                  className="px-4 py-2 rounded-lg border hover:bg-gray-50 transition"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  disabled={saving}
-                  className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
+                  disabled={saving || formik.isSubmitting}
+                  className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50 hover:bg-gray-800 transition"
                 >
                   {saving ? "Đang lưu..." : "Lưu"}
                 </button>
