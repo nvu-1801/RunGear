@@ -33,6 +33,7 @@ type Props = {
   onSaved: () => void;
 };
 
+
 const validationSchema = Yup.object({
   name: Yup.string().trim().required("Tên sản phẩm bắt buộc"),
   price: Yup.number().min(0, "Giá phải >= 0").required("Giá bắt buộc"),

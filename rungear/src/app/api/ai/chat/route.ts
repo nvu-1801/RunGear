@@ -1,17 +1,14 @@
-import { NextRequest } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+// app/api/assistant/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { genAI, MODEL, toolset } from "@/lib/gemini";
+import {
+  searchProductsTool,
+  getProductDetailsTool,
+} from "@/lib/tools/products";
 import { createClient } from "@supabase/supabase-js";
-import { SALES_SYSTEM_PROMPT, renderPrompt } from "../prompts/sales-system";
 
 export const runtime = "nodejs";
 
-const MODEL_CANDIDATES = [
-  process.env.GEMINI_MODEL || "gemini-2.5-flash",
-  "gemini-2.5-pro",
-  "gemini-1.5-flash",
-];
-
-// helper to safely extract message from unknown errors
 function getMessage(err: unknown) {
   if (typeof err === "object" && err !== null && "message" in err) {
     try {
@@ -25,40 +22,48 @@ function getMessage(err: unknown) {
 
 export async function POST(req: NextRequest) {
   try {
+    // quick env check
+    const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+    if (!GOOGLE_API_KEY) {
+      console.error("[AI] Missing GOOGLE_API_KEY env");
+      return NextResponse.json(
+        { error: "Server misconfigured: missing GOOGLE_API_KEY" },
+        { status: 500 }
+      );
+    }
+
+    // pass key into SDK / client if required by your genAI helper
+    // e.g. genAI.init({ apiKey: GOOGLE_API_KEY }) or ensure SDK picks it up
     const { prompt, history, sessionId, userId } = await req.json();
 
     if (!prompt || typeof prompt !== "string") {
-      return new Response("Missing 'prompt'", { status: 400 });
+      return NextResponse.json({ error: "Missing 'prompt'" }, { status: 400 });
     }
 
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !key) {
-      return new Response("Server missing Supabase config", { status: 500 });
+    // --- Optional: Supabase admin for chat logs (best-effort) ---
+    const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const sbSrvKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // optional
+    const supabaseAdmin =
+      sbUrl && sbSrvKey ? createClient(sbUrl, sbSrvKey) : null;
+
+    // log user message (fire-and-forget)
+    if (supabaseAdmin) {
+      (async () => {
+        try {
+          await supabaseAdmin.from("ai_chat_logs").insert({
+            session_id: sessionId ?? null,
+            role: "user",
+            text: prompt,
+            user_id: userId ?? null,
+            meta: { source: "chat_api" },
+          });
+        } catch (err) {
+          console.error("ai_chat_logs insert user error:", getMessage(err));
+        }
+      })();
     }
 
-    const supabaseAdmin = createClient(url, key);
-
-    // persist user message (best-effort)
-    try {
-      await supabaseAdmin.from("ai_chat_logs").insert({
-        session_id: sessionId ?? null,
-        role: "user",
-        text: prompt,
-        user_id: userId ?? null,
-        meta: { source: "chat_api" },
-      });
-    } catch (e: unknown) {
-      // don't fail the request if logging fails
-      console.error("ai_chat_logs insert user error:", getMessage(e));
-    }
-
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey)
-      return new Response("Server missing GEMINI_API_KEY", { status: 500 });
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-
+    // Map history -> Gemini contents
     const histContents = Array.isArray(history)
       ? history
           .filter((m: unknown) => {
@@ -78,90 +83,100 @@ export async function POST(req: NextRequest) {
           })
       : [];
 
-    const systemPrompt = renderPrompt(SALES_SYSTEM_PROMPT, {
-      STORE_NAME: process.env.STORE_NAME ?? "Run Gear",
+    // Khởi tạo model với toolset (function calling)
+    const model = genAI.getGenerativeModel({
+      model: MODEL,
+      tools: [toolset as any],
+      systemInstruction: `
+Bạn là chatbot tư vấn sản phẩm thể thao (áo, quần, giày) cho cửa hàng.
+- Luôn hỏi rõ ngân sách, mục đích dùng, size/giới tính nếu cần.
+- Khi gợi ý, ưu tiên gọi tool "searchProducts" để lấy dữ liệu thật.
+- Trả lời ngắn gọn, tiếng Việt tự nhiên.
+- Hiển thị tối đa 3 sản phẩm: tên, giá, còn hàng/không, link, và 1 lý do ngắn.
+- Nếu người dùng muốn chi tiết 1 sản phẩm, hãy gọi tool "getProductDetails".
+- Không bịa thông tin ngoài dữ liệu tool trả về.
+      `,
     });
 
-    const tryModelsInOrder = async () => {
-      let lastErr: unknown = null;
-      for (const modelId of MODEL_CANDIDATES) {
+    // ===== 1) Gọi lần đầu
+    let res = await model.generateContent({
+      contents: [...histContents, { role: "user", parts: [{ text: prompt }] }],
+    });
+
+    let response = res.response;
+    let functionCalls = response.functionCalls();
+
+    // Giữ history cục bộ để tiếp tục đối thoại
+    const historyForTurn = [
+      ...histContents,
+      { role: "user" as const, parts: [{ text: prompt }] },
+    ];
+
+    // ===== 2) Nếu có functionCalls: thực thi tool & phản hồi lại cho model
+    while (functionCalls && functionCalls.length > 0) {
+      const toolParts: any[] = [];
+
+      for (const call of functionCalls) {
+        const name = call.name;
+        const args = call.args;
+
+        let result: unknown;
         try {
-          const model = genAI.getGenerativeModel({
-            model: modelId,
-            systemInstruction: systemPrompt,
-          });
-          const result = await model.generateContentStream({
-            contents: [
-              ...histContents,
-              { role: "user", parts: [{ text: prompt }] },
-            ],
-          });
-          return { modelId, stream: result.stream };
-        } catch (e: unknown) {
-          const msg = getMessage(e);
-          if (
-            msg.includes("404") ||
-            msg.includes("not found") ||
-            msg.includes("is not supported")
-          ) {
-            lastErr = e;
-            continue;
-          }
-          throw e;
-        }
-      }
-      throw lastErr ?? new Error("No available Gemini model");
-    };
-
-    const { modelId, stream } = await tryModelsInOrder();
-
-    const encoder = new TextEncoder();
-    let assistantText = "";
-
-    const readable = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const chunk of stream) {
-            const part = (chunk as unknown as { text?: () => string }).text?.();
-            if (part) {
-              assistantText += part;
-              controller.enqueue(encoder.encode(part));
-            }
+          if (name === "searchProducts") {
+            result = await searchProductsTool(args);
+          } else if (name === "getProductDetails") {
+            result = await getProductDetailsTool(args);
+          } else {
+            result = { error: `Unknown tool: ${name}` };
           }
         } catch (err: unknown) {
-          const errMsg = `\n[AI error] ${getMessage(err)}`;
-          // enqueue error message to client
-          controller.enqueue(encoder.encode(errMsg));
-          assistantText += errMsg;
-        } finally {
-          controller.close();
-          // persist assistant reply (best-effort)
-          try {
-            await supabaseAdmin.from("ai_chat_logs").insert({
-              session_id: sessionId ?? null,
-              role: "assistant",
-              text: assistantText,
-              user_id: userId ?? null,
-              meta: { model: modelId },
-            });
-          } catch (e: unknown) {
-            console.error(
-              "ai_chat_logs insert assistant error:",
-              getMessage(e)
-            );
-          }
+          result = { error: getMessage(err) };
         }
-      },
-    });
 
-    return new Response(readable, {
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": "no-cache, no-transform",
-        "X-Model-Used": modelId,
-      },
-    });
+        toolParts.push({
+          functionResponse: {
+            name,
+            response: { result },
+          },
+        });
+      }
+
+      // Gửi functionResponse để model suy luận tiếp
+      res = await model.generateContent({
+        contents: [
+          ...historyForTurn,
+          { role: "tool" as const, parts: toolParts },
+        ],
+      });
+      response = res.response;
+      functionCalls = response.functionCalls();
+    }
+
+    const text = response.text();
+
+    // log assistant (best-effort)
+    if (supabaseAdmin) {
+      (async () => {
+        try {
+          await supabaseAdmin.from("ai_chat_logs").insert({
+            session_id: sessionId ?? null,
+            role: "assistant",
+            text,
+            user_id: userId ?? null,
+            meta: { model: MODEL },
+          });
+        } catch (err) {
+          console.error(
+            "ai_chat_logs insert assistant error:",
+            getMessage(err)
+          );
+        }
+      })();
+    }
+
+    return NextResponse.json({ text, model: MODEL });
   } catch (e: unknown) {
-    return new Response(getMessage(e), { status: 500 });
+    console.error("[AI] POST error:", e);
+    return NextResponse.json({ error: "AI server error" }, { status: 500 });
   }
 }

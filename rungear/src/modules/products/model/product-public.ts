@@ -13,7 +13,9 @@ export type Product = {
 
 const isHttpUrl = (s?: string | null) => !!s && /^https?:\/\//i.test(s!.trim());
 
-export function normalizeImages(imgs: string[] | string | null | undefined): string[] {
+export function normalizeImages(
+  imgs: string[] | string | null | undefined
+): string[] {
   if (Array.isArray(imgs)) return imgs.filter(isHttpUrl);
   if (typeof imgs === "string") {
     // hỗ trợ cả chuỗi đơn hoặc chuỗi có dấu phẩy / xuống dòng
@@ -27,10 +29,18 @@ export function normalizeImages(imgs: string[] | string | null | undefined): str
 
 // Ảnh đại diện (ảnh đầu tiên hợp lệ)
 export function productImageUrl(p: { images?: string[] | string | null }) {
-  const arr = normalizeImages(p.images);
-  return arr[0] ?? null;
+  return getFirstImg(p.images ?? null);
 }
 
 export function imagePathToUrl(url: string) {
-  return url; 
+  return getImageUrl(url);
 }
+
+// Export thêm helper lấy tất cả ảnh
+export { getAllImageUrls };
+
+import {
+  getImageUrl,
+  getFirstImage as getFirstImg,
+  getAllImageUrls,
+} from "../lib/image-url";

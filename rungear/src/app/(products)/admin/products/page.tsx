@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ProductForm from "./ProductForm";
+import { getFirstImage as getFirstImageUrl } from "@/modules/products/lib/image-url";
 
 type Category = { id: string; name: string; slug: string };
 type Product = {
@@ -10,7 +11,7 @@ type Product = {
   slug: string;
   price: number;
   stock: number;
-  images: string | null;
+  images: string | string[] | null; // Support both string and array
   status: "draft" | "active" | "hidden";
   categories_id:
     | "1d4478e7-c9d2-445e-8520-14dae73aac68"
@@ -25,6 +26,20 @@ type PageResp = {
   total: number;
   page: number;
   pageSize: number;
+};
+
+// API response shape cho storage
+export type StorageFileItem = {
+  name: string;
+  path: string;
+  publicUrl: string;
+  createdAt?: string;
+  size: number;
+};
+
+export type ListFilesResp = {
+  files: StorageFileItem[];
+  count: number;
 };
 
 export default function ProductManager() {
@@ -42,6 +57,12 @@ export default function ProductManager() {
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
+
+  // State cho image gallery
+  const [showGallery, setShowGallery] = useState(false);
+  const [galleryImages, setGalleryImages] = useState<StorageFileItem[]>([]);
+  const [galleryLoading, setGalleryLoading] = useState(false);
+  const [galleryError, setGalleryError] = useState<string | null>(null);
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(data.total / data.pageSize)),
@@ -72,9 +93,42 @@ export default function ProductManager() {
     }
   }, [q, page, pageSize]);
 
+  // Fetch gallery images
+  const fetchGalleryImages = useCallback(
+    async (folder = "products", limit = 100) => {
+      setGalleryLoading(true);
+      setGalleryError(null);
+      try {
+        const url = new URL("/api/upload", window.location.origin);
+        url.searchParams.set("folder", folder);
+        url.searchParams.set("limit", String(limit));
+
+        const r = await fetch(url.toString(), { cache: "no-store" });
+        if (!r.ok) {
+          const msg = await r.text();
+          throw new Error(msg || `HTTP ${r.status}`);
+        }
+        const json: ListFilesResp = await r.json();
+        setGalleryImages(json.files ?? []);
+      } catch (e) {
+        const errorMsg = e instanceof Error ? e.message : String(e);
+        setGalleryError(errorMsg);
+        console.error("List images failed:", e);
+      } finally {
+        setGalleryLoading(false);
+      }
+    },
+    []
+  );
+
   useEffect(() => {
     void fetchList();
   }, [fetchList]);
+
+  // Fetch gallery images on mount
+  useEffect(() => {
+    void fetchGalleryImages();
+  }, [fetchGalleryImages]);
 
   // CRUD Handlers
   const onCreate = () => {
@@ -99,6 +153,7 @@ export default function ProductManager() {
   const onSaved = () => {
     setShowForm(false);
     void fetchList();
+    void fetchGalleryImages();
   };
   const getCategoryName = (categoryId: string): string => {
     const categories: Record<string, string> = {
@@ -152,6 +207,30 @@ export default function ProductManager() {
           </div>
 
           <button
+            onClick={() => {
+              setShowGallery(true);
+              void fetchGalleryImages();
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow hover:scale-[1.02] transform transition"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
+            </svg>
+            Gallery
+          </button>
+
+          <button
             onClick={onCreate}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-sky-500 text-white shadow hover:scale-[1.02] transform transition"
           >
@@ -191,9 +270,15 @@ export default function ProductManager() {
               </div>
             </div>
           </div>
+          <div className="mt-4 pt-4 border-t">
+            <div className="text-xs text-gray-500 mb-2">Storage Images</div>
+            <div className="text-lg font-semibold">
+              {galleryImages.length} files
+            </div>
+          </div>
           <div className="mt-4 text-sm text-gray-500">
-            Pro tip: Click a product to edit it. On mobile the list shows cards
-            for easier scanning.
+            Pro tip: Click Gallery to select images from storage for your
+            products.
           </div>
         </div>
 
@@ -219,9 +304,13 @@ export default function ProductManager() {
                       <td className="p-4">
                         <div className="flex items-center gap-4">
                           <img
-                            src={p.images || "https://placehold.co/80x80"}
+                            src={getFirstImageUrl(p.images)}
                             alt={p.name}
                             className="w-14 h-14 rounded-lg object-cover border"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src =
+                                "https://placehold.co/80x80";
+                            }}
                           />
                           <div>
                             <div className="font-medium text-gray-900">
@@ -291,9 +380,13 @@ export default function ProductManager() {
                   className="bg-white border rounded-xl p-4 shadow-sm flex gap-4"
                 >
                   <img
-                    src={p.images || "https://placehold.co/80x80"}
+                    src={getFirstImageUrl(p.images)}
                     alt={p.name}
                     className="w-20 h-20 rounded-lg object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src =
+                        "https://placehold.co/80x80";
+                    }}
                   />
                   <div className="flex-1">
                     <div className="flex items-start justify-between gap-3">
@@ -364,10 +457,139 @@ export default function ProductManager() {
       {/* Modal Form */}
       {showForm && (
         <ProductForm
-          initial={editing ?? undefined}
+          initial={
+            editing
+              ? {
+                  ...editing,
+                  images:
+                    typeof editing.images === "string"
+                      ? editing.images
+                      : Array.isArray(editing.images) &&
+                        editing.images.length > 0
+                      ? editing.images[0]
+                      : null,
+                }
+              : undefined
+          }
           onClose={() => setShowForm(false)}
           onSaved={onSaved}
         />
+      )}
+
+      {/* Gallery Modal */}
+      {showGallery && (
+        <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-6xl shadow-2xl border max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white z-10">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  Image Gallery
+                </h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  {galleryImages.length} images in storage • Click to copy URL
+                </p>
+              </div>
+              <button
+                onClick={() => setShowGallery(false)}
+                className="p-2 rounded-lg hover:bg-gray-100 transition"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6">
+              {galleryLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <svg
+                    className="animate-spin h-8 w-8 text-blue-600"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                </div>
+              ) : galleryError ? (
+                <div className="text-center py-12 text-red-600">
+                  {galleryError}
+                </div>
+              ) : galleryImages.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  No images in storage yet. Upload some images first!
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {galleryImages.map((img) => (
+                    <div
+                      key={img.path}
+                      className="group relative aspect-square rounded-xl overflow-hidden border-2 border-transparent hover:border-blue-500 transition cursor-pointer"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(img.publicUrl);
+                          alert("✓ URL copied to clipboard!");
+                        } catch {
+                          prompt("Copy this URL:", img.publicUrl);
+                        }
+                      }}
+                    >
+                      <img
+                        src={img.publicUrl}
+                        alt={img.name}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center gap-2">
+                        <button className="px-3 py-1.5 bg-white text-gray-900 rounded-lg text-sm font-medium hover:bg-gray-100">
+                          📋 Copy URL
+                        </button>
+                        <a
+                          href={img.publicUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          🔗 Open
+                        </a>
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2 opacity-0 group-hover:opacity-100 transition">
+                        <p className="text-white text-xs truncate">
+                          {img.name}
+                        </p>
+                        <p className="text-white/70 text-[10px]">
+                          {(img.size / 1024).toFixed(1)} KB
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

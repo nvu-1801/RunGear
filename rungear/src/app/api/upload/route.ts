@@ -70,3 +70,81 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
+
+export async function GET(req: Request) {
+  try {
+    const sb = await supabaseServer();
+    const { searchParams } = new URL(req.url);
+    const folder = searchParams.get("folder") || "products";
+    const limit = parseInt(searchParams.get("limit") || "100");
+    const includeExternal = searchParams.get("includeExternal") === "true";
+
+    // 1. List files trong bucket
+    const { data: files, error: listError } = await sb.storage
+      .from("product-images")
+      .list(folder, {
+        limit,
+        offset: 0,
+        sortBy: { column: "created_at", order: "desc" },
+      });
+
+    if (listError) {
+      console.error("storage list error:", listError);
+      return NextResponse.json(
+        { error: "Failed to list files", details: listError },
+        { status: 500 }
+      );
+    }
+
+    // 2. Tạo public URLs cho files trong bucket
+    const filesWithUrls = (files || []).map((file) => {
+      const path = `${folder}/${file.name}`;
+      const { data: pubData } = sb.storage
+        .from("product-images")
+        .getPublicUrl(path);
+      return {
+        name: file.name,
+        path,
+        publicUrl: (pubData as any)?.publicUrl ?? "",
+        createdAt: file.created_at,
+        size: file.metadata?.size ?? 0,
+        source: "bucket" as const,
+      };
+    });
+
+    // 3. (Optional) Lấy external URLs từ DB nếu được yêu cầu
+    let externalImages: any[] = [];
+    if (includeExternal) {
+      const { data: products } = await sb
+        .from("products")
+        .select("id, name, images")
+        .not("images", "is", null);
+
+      externalImages = (products || [])
+        .flatMap((p) => {
+          const imgs = Array.isArray(p.images) ? p.images : [p.images];
+          return imgs.filter((img: string) => /^https?:\/\//i.test(img));
+        })
+        .map((url: string, idx: number) => ({
+          name: `external-${idx}`,
+          path: url,
+          publicUrl: url,
+          createdAt: new Date().toISOString(),
+          size: 0,
+          source: "external" as const,
+        }));
+    }
+
+    const allFiles = [...filesWithUrls, ...externalImages];
+
+    return NextResponse.json({
+      files: allFiles,
+      count: allFiles.length,
+      bucketCount: filesWithUrls.length,
+      externalCount: externalImages.length,
+    });
+  } catch (err) {
+    console.error("upload GET route error:", err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}

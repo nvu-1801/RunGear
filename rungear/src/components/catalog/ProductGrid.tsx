@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { productImageUrl } from "@/modules/products/model/product-public";
 import { formatPriceVND } from "@/shared/price";
+import { getFirstImage } from "@/modules/products/lib/image-url";
 
 // Type định nghĩa cho Product
 type Product = {
@@ -162,10 +163,14 @@ export function ProductGridClient({
             <article className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-transform h-full flex flex-col">
               <div className="relative w-full aspect-square md:aspect-[4/3] bg-gradient-to-br from-slate-50 to-white overflow-hidden">
                 <img
-                  src={productImageUrl(p) ?? "/placeholder.png"}
+                  src={getFirstImage(p.images ?? null)}
                   alt={p.name}
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
                   loading="lazy"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src =
+                      "https://placehold.co/800/e2e8f0/64748b?text=Error";
+                  }}
                 />
                 <div className="absolute inset-0 rounded-2xl ring-1 ring-slate-200/70 group-hover:ring-blue-200/80 pointer-events-none" />
                 <Link
