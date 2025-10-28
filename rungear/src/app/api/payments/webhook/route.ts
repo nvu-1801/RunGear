@@ -1,7 +1,6 @@
-// app/api/payments/webhook/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { supabaseServer } from "@/libs/supabase/supabase-server";
+import { supabaseAdmin } from "@/libs/supabase/supabase-admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -111,7 +110,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Determine success status
-    // PayOS uses 'status' === "PAID" or 'code' === "00"
     const success = status === "PAID" || code === "00";
     const orderStatus = success ? "PAID" : "FAILED";
 
@@ -119,9 +117,11 @@ export async function POST(req: NextRequest) {
       `📦 Processing order #${codeNum}: status=${orderStatus}, amount=${amount}`
     );
 
+    // ✅ Use admin client to bypass RLS
+    const admin = supabaseAdmin();
+
     // Update database with idempotent protection
-    const supabase = await supabaseServer();
-    const { error } = await supabase
+    const { error } = await admin
       .from("orders")
       .update({
         status: orderStatus,
@@ -129,8 +129,8 @@ export async function POST(req: NextRequest) {
         payment_link_id:
           typeof paymentLinkId === "string" ? paymentLinkId : null,
       })
-      .eq("order_code", codeNum) // ✅ bigint comparison with number
-      .neq("status", "PAID"); // ✅ idempotent: don't overwrite already paid orders
+      .eq("order_code", codeNum)
+      .neq("status", "PAID"); // idempotent: don't overwrite already paid orders
 
     if (error) {
       console.error("❌ Database update error:", error);
@@ -138,6 +138,47 @@ export async function POST(req: NextRequest) {
         { ok: false, error: error.message },
         { status: 500 }
       );
+    }
+
+    // ✅ Increment discount code usage if payment successful
+    if (success) {
+      const { data: order } = await admin
+        .from("orders")
+        .select("discount_code_id")
+        .eq("order_code", codeNum)
+        .single();
+
+      if (order?.discount_code_id) {
+        // Read current uses_count first, then update to avoid using admin.sql (not available on the client)
+        const { data: discountRow, error: discountSelectError } = await admin
+          .from("discount_codes")
+          .select("uses_count")
+          .eq("id", order.discount_code_id)
+          .single();
+
+        if (discountSelectError) {
+          console.error("⚠️ Failed to read discount usage:", discountSelectError);
+          // Don't fail the webhook for this
+        } else {
+          const currentUses =
+            typeof discountRow?.uses_count === "number"
+              ? discountRow.uses_count
+              : Number(discountRow?.uses_count) || 0;
+          const newCount = currentUses + 1;
+
+          const { error: discountError } = await admin
+            .from("discount_codes")
+            .update({ uses_count: newCount })
+            .eq("id", order.discount_code_id);
+
+          if (discountError) {
+            console.error("⚠️ Failed to increment discount usage:", discountError);
+            // Don't fail the webhook for this
+          } else {
+            console.log(`✅ Incremented discount code usage for order #${codeNum}`);
+          }
+        }
+      }
     }
 
     console.log(
