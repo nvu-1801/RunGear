@@ -62,7 +62,15 @@ export async function POST(req: Request) {
     const { data: pubData } = sb.storage
       .from("product-images")
       .getPublicUrl(path);
-    const publicUrl = (pubData as any)?.publicUrl ?? "";
+
+    // Type guard for publicUrl
+    const publicUrl =
+      pubData &&
+      typeof pubData === "object" &&
+      "publicUrl" in pubData &&
+      typeof (pubData as { publicUrl?: unknown }).publicUrl === "string"
+        ? (pubData as { publicUrl: string }).publicUrl
+        : "";
 
     return NextResponse.json({ path, publicUrl });
   } catch (err) {
@@ -102,10 +110,20 @@ export async function GET(req: Request) {
       const { data: pubData } = sb.storage
         .from("product-images")
         .getPublicUrl(path);
+
+      // Type guard for publicUrl
+      const publicUrl =
+        pubData &&
+        typeof pubData === "object" &&
+        "publicUrl" in pubData &&
+        typeof (pubData as { publicUrl?: unknown }).publicUrl === "string"
+          ? (pubData as { publicUrl: string }).publicUrl
+          : "";
+
       return {
         name: file.name,
         path,
-        publicUrl: (pubData as any)?.publicUrl ?? "",
+        publicUrl,
         createdAt: file.created_at,
         size: file.metadata?.size ?? 0,
         source: "bucket" as const,
@@ -113,7 +131,15 @@ export async function GET(req: Request) {
     });
 
     // 3. (Optional) Lấy external URLs từ DB nếu được yêu cầu
-    let externalImages: any[] = [];
+    let externalImages: Array<{
+      name: string;
+      path: string;
+      publicUrl: string;
+      createdAt: string;
+      size: number;
+      source: "external";
+    }> = [];
+
     if (includeExternal) {
       const { data: products } = await sb
         .from("products")
@@ -123,7 +149,9 @@ export async function GET(req: Request) {
       externalImages = (products || [])
         .flatMap((p) => {
           const imgs = Array.isArray(p.images) ? p.images : [p.images];
-          return imgs.filter((img: string) => /^https?:\/\//i.test(img));
+          return imgs.filter((img: unknown) => {
+            return typeof img === "string" && /^https?:\/\//i.test(img);
+          });
         })
         .map((url: string, idx: number) => ({
           name: `external-${idx}`,

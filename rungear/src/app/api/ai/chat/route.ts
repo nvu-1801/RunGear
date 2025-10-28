@@ -6,6 +6,7 @@ import {
   getProductDetailsTool,
 } from "@/lib/tools/products";
 import { createClient } from "@supabase/supabase-js";
+import type { Tool, Part, FunctionResponsePart } from "@google/generative-ai";
 
 export const runtime = "nodejs";
 
@@ -32,9 +33,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // pass key into SDK / client if required by your genAI helper
-    // e.g. genAI.init({ apiKey: GOOGLE_API_KEY }) or ensure SDK picks it up
-    const { prompt, history, sessionId, userId } = await req.json();
+    const body: unknown = await req.json();
+
+    // Type guard for request body
+    if (!body || typeof body !== "object") {
+      return NextResponse.json(
+        { error: "Invalid request body" },
+        { status: 400 }
+      );
+    }
+
+    const { prompt, history, sessionId, userId } = body as {
+      prompt?: unknown;
+      history?: unknown;
+      sessionId?: unknown;
+      userId?: unknown;
+    };
 
     if (!prompt || typeof prompt !== "string") {
       return NextResponse.json({ error: "Missing 'prompt'" }, { status: 400 });
@@ -77,7 +91,7 @@ export async function POST(req: NextRequest) {
           .map((m: unknown) => {
             const mm = m as { text: string; role: string };
             return {
-              role: mm.role === "user" ? "user" : "model",
+              role: mm.role === "user" ? ("user" as const) : ("model" as const),
               parts: [{ text: mm.text }],
             };
           })
@@ -86,7 +100,8 @@ export async function POST(req: NextRequest) {
     // Khởi tạo model với toolset (function calling)
     const model = genAI.getGenerativeModel({
       model: MODEL,
-      tools: [toolset as any],
+      // Cast toolset to Tool type - ensure toolset is properly typed in @/lib/gemini
+      tools: [toolset as Tool],
       systemInstruction: `
 Bạn là chatbot tư vấn sản phẩm thể thao (áo, quần, giày) cho cửa hàng.
 - Luôn hỏi rõ ngân sách, mục đích dùng, size/giới tính nếu cần.
@@ -114,11 +129,12 @@ Bạn là chatbot tư vấn sản phẩm thể thao (áo, quần, giày) cho c�
 
     // ===== 2) Nếu có functionCalls: thực thi tool & phản hồi lại cho model
     while (functionCalls && functionCalls.length > 0) {
-      const toolParts: any[] = [];
+      // Properly typed function response parts
+      const toolParts: FunctionResponsePart[] = [];
 
       for (const call of functionCalls) {
         const name = call.name;
-        const args = call.args;
+        const args = call.args as Record<string, unknown>;
 
         let result: unknown;
         try {
@@ -133,10 +149,11 @@ Bạn là chatbot tư vấn sản phẩm thể thao (áo, quần, giày) cho c�
           result = { error: getMessage(err) };
         }
 
+        // Push properly typed FunctionResponsePart
         toolParts.push({
           functionResponse: {
             name,
-            response: { result },
+            response: result as object, // Cast to object as required by SDK
           },
         });
       }
@@ -145,7 +162,7 @@ Bạn là chatbot tư vấn sản phẩm thể thao (áo, quần, giày) cho c�
       res = await model.generateContent({
         contents: [
           ...historyForTurn,
-          { role: "tool" as const, parts: toolParts },
+          { role: "function" as const, parts: toolParts },
         ],
       });
       response = res.response;

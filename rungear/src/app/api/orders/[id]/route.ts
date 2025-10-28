@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/libs/supabase/supabase-server";
 
-
 function asOrderCodeNumber(v: unknown): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return v;
   if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) {
@@ -17,8 +16,11 @@ function asOrderCodeNumber(v: unknown): number | null {
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { code: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  // Await params in Next.js 15+
+  const { id } = await params;
+
   const supabase = await supabaseServer();
   const {
     data: { user },
@@ -31,7 +33,7 @@ export async function GET(
     );
   }
 
-  const codeNum = asOrderCodeNumber(params.code);
+  const codeNum = asOrderCodeNumber(id);
   if (codeNum === null) {
     return NextResponse.json(
       { success: false, error: "Invalid order code" },
