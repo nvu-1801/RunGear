@@ -1,33 +1,42 @@
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
-import type { Tool, FunctionDeclarationSchema, Schema } from "@google/generative-ai";
+import type { Tool, Schema, FunctionDeclarationSchema } from "@google/generative-ai";
 import * as z from "zod";
 import {
   searchProductsSchema,
   getProductDetailsSchema,
 } from "@/lib/tools/schemas";
 
-const apiKey = process.env.GOOGLE_API_KEY;
-if (!apiKey) throw new Error("GOOGLE_API_KEY environment variable is not set");
+// ✅ Don't throw at import time - defer to runtime
+const apiKey = process.env.GEMINI_API_KEY;
 
-export const genAI = new GoogleGenerativeAI(apiKey);
+// Lazy initialization
+let _genAI: GoogleGenerativeAI | null = null;
+
+export function getGenAI(): GoogleGenerativeAI {
+  if (!_genAI) {
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY environment variable is not set");
+    }
+    _genAI = new GoogleGenerativeAI(apiKey);
+  }
+  return _genAI;
+}
+
+// Export for backward compatibility
+export const genAI = new Proxy({} as GoogleGenerativeAI, {
+  get(_target, prop) {
+    return getGenAI()[prop as keyof GoogleGenerativeAI];
+  },
+});
+
 export const MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash-exp";
 
 /** Zod v4: convert to JSON Schema */
-const searchProductsJSON = z.toJSONSchema(searchProductsSchema, {
-  // io: "input",
-  // target: "openapi-3.0",
-  // reused: "inline",
-});
+const searchProductsJSON = z.toJSONSchema(searchProductsSchema);
+const getProductDetailsJSON = z.toJSONSchema(getProductDetailsSchema);
 
-const getProductDetailsJSON = z.toJSONSchema(getProductDetailsSchema, {
-  // io: "input",
-  // target: "openapi-3.0",
-});
-
-/** Convert Zod JSON Schema to Gemini FunctionDeclarationSchema */
-function convertToGeminiSchema(
-  jsonSchema: Record<string, unknown>
-): FunctionDeclarationSchema {
+/** Convert Zod JSON Schema to Gemini Schema */
+function convertToGeminiSchema(jsonSchema: Record<string, unknown>): FunctionDeclarationSchema {
   const properties: Record<string, Schema> = {};
 
   // Extract properties from Zod schema
@@ -43,14 +52,14 @@ function convertToGeminiSchema(
   return {
     type: SchemaType.OBJECT,
     properties,
-    required: Array.isArray(jsonSchema.required) ? jsonSchema.required : [],
+    required: Array.isArray(jsonSchema.required)
+      ? jsonSchema.required
+      : undefined,
   };
 }
 
 /** Convert individual property to Gemini schema format */
-function convertPropertyToGemini(
-  prop: Record<string, unknown>
-): Schema {
+function convertPropertyToGemini(prop: Record<string, unknown>): Schema {
   const propType = prop.type as string;
 
   // Map JSON Schema types to Gemini SchemaType
@@ -76,7 +85,8 @@ function convertPropertyToGemini(
       schemaType = SchemaType.STRING;
   }
 
-  const result: Partial<Schema> = {
+  // Build a flexible object and cast to Schema at the end to satisfy TS union types
+  const result: any = {
     type: schemaType,
     description:
       typeof prop.description === "string" ? prop.description : undefined,
@@ -84,23 +94,23 @@ function convertPropertyToGemini(
 
   // Handle enum
   if (Array.isArray(prop.enum)) {
-    (result as any).enum = prop.enum as string[];
+    result.enum = prop.enum as string[];
   }
 
   // Handle array items
   if (schemaType === SchemaType.ARRAY && prop.items) {
-    (result as any).items = convertPropertyToGemini(
+    result.items = convertPropertyToGemini(
       prop.items as Record<string, unknown>
     );
   }
 
   // Handle object properties
   if (schemaType === SchemaType.OBJECT && prop.properties) {
-    (result as any).properties = {};
+    result.properties = {};
     for (const [key, value] of Object.entries(
       prop.properties as Record<string, unknown>
     )) {
-      (result as any).properties[key] = convertPropertyToGemini(
+      result.properties[key] = convertPropertyToGemini(
         value as Record<string, unknown>
       );
     }
