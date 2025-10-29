@@ -7,10 +7,7 @@ export async function GET() {
 }
 export async function POST(req: NextRequest) {
   try {
-    console.log("reqqqqq:", req);
     const body = await req.json();
-    console.log("bodyyyy:", body);
-    console.log("email:", body.email);
     const { email } = body;
 
     // Validation
@@ -39,8 +36,8 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
     }
+  
 
-    // Sử dụng Supabase Auth để gửi email reset password
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(
       email,
       {
