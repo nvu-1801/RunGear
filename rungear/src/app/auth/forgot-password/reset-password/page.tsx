@@ -22,6 +22,19 @@ export default function ResetPasswordPage() {
       try {
         console.log("=== BẮT ĐẦU VALIDATE TOKEN ===");
 
+        // ✅ Kiểm tra searchParams trước khi sử dụng
+      if (!searchParams) {
+        console.log("❌ searchParams is null");
+        setError("Không thể đọc thông tin từ URL. Vui lòng thử lại.");
+        setValidatingToken(false);
+        setTokenValid(false);
+        
+        setTimeout(() => {
+          router.push("/auth/forgot-password");
+        }, 3000);
+        return;
+      }
+
         // ✅ Đọc query params (?access_token=...)
         const accessToken = searchParams.get("access_token");
         const type = searchParams.get("type");
