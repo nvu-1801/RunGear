@@ -76,4 +76,63 @@ export async function POST(request: Request) {
 export const dynamic = "force-dynamic";
 
 //
+export async function GET(req: NextRequest) {
+  const { searchParams, origin } = new URL(req.url);
+  const code = searchParams.get("code");
+  const next = searchParams.get("next") ?? "/";
 
+  console.log("🔍 Callback params:", { code: code?.substring(0, 20), next });
+
+  if (code) {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+
+    try {
+      // Exchange code for session
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+      console.log("🔐 Exchange result:", {
+        hasSession: !!data.session,
+        hasUser: !!data.user,
+        error
+      });
+
+      if (error) {
+        console.error("❌ Exchange error:", error);
+        return NextResponse.redirect(`${origin}/auth/forgot-password?error=invalid_code`);
+      }
+
+      if (data.session) {
+        console.log("✅ Session created, redirecting to:", next);
+        
+        // Redirect với session token trong cookie
+        const response = NextResponse.redirect(`${origin}${next}`);
+        
+        // Set session cookies
+        response.cookies.set("sb-access-token", data.session.access_token, {
+          path: "/",
+          maxAge: 60 * 60, // 1 hour
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+        });
+
+        response.cookies.set("sb-refresh-token", data.session.refresh_token, {
+          path: "/",
+          maxAge: 60 * 60 * 24 * 7, // 7 days
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+        });
+
+        return response;
+      }
+    } catch (err) {
+      console.error("💥 Exception:", err);
+    }
+  }
+
+  // Fallback nếu không có code
+  console.log("❌ No code found, redirecting to signin");
+  return NextResponse.redirect(`${origin}/auth/signin`);
+}

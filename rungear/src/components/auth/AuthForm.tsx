@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { supabaseBrowser } from "../../libs/supabase/supabase-client";
 
 function humanize(message?: string) {
@@ -211,7 +212,21 @@ export default function AuthForm({ mode }: { mode: "signin" | "signup" }) {
         <p className="text-[11px] text-gray-500 mt-1">Ít nhất 8 ký tự.</p>
       </div>
 
-      {/* Submit */}
+      {mode === "signin" && (
+        <div className="flex items-center justify-between text-sm">
+          <label className="flex items-center gap-2">
+            <input type="checkbox" className="rounded" />
+            <span className="text-gray-600">Ghi nhớ đăng nhập</span>
+          </label>
+          <Link
+            href="/auth/forgot-password"
+            className="text-blue-600 hover:text-blue-700 hover:underline"
+          >
+            Quên mật khẩu?
+          </Link>
+        </div>
+      )}
+
       <button
         type="submit"
         disabled={pending}
