@@ -9,11 +9,26 @@ import { ShippingAndPaymentMethod } from "../../../components/payments/ShippingA
 import { OrderSummary } from "../../../components/payments/OrderSummary";
 import { SavedAddresses, type Address } from "../../../components/payments/SavedAddresses";
 
+
+  // ← THÊM type cho shipping data
+type ShippingData = {
+  full_name: string;
+  phone: string;
+  email: string;
+  address_line: string;
+  province: string;
+  district: string;
+  note?: string;
+};
+
 export default function PaymentsPage() {
   const { items, subtotal } = useCart();
   const [coupon, setCoupon] = useState("");
   const [note, setNote] = useState("");
   const [shipping, setShipping] = useState<"standard" | "fast">("standard");
+
+  // ← THÊM state để lưu shipping data
+  const [shippingData, setShippingData] = useState<ShippingData | null>(null);
 
   // Quản lý địa chỉ đã lưu (demo: dùng state local, thực tế nên lưu DB)
   const [addresses, setAddresses] = useState<Address[]>([
@@ -40,6 +55,11 @@ export default function PaymentsPage() {
 
   const total = Math.max(0, subtotal + shippingFee - discount);
   const isEmpty = items.length === 0;
+
+  // ← THÊM callback để nhận data từ ShippingInfoForm
+  const handleShippingChange = (data: ShippingData) => {
+    setShippingData(data);
+  };
 
   const handleAddAddress = (addr: Omit<Address, "id">) => {
     const newAddr: Address = { ...addr, id: Date.now().toString() };
@@ -93,11 +113,14 @@ export default function PaymentsPage() {
                 onDeleteAddress={handleDeleteAddress}
               />
 
+
               {/* Form thông tin nhận hàng */}
               <ShippingInfoForm
                 note={note}
                 onNoteChange={setNote}
                 selectedAddress={selectedAddress}
+                onShippingChange={handleShippingChange}
+                onChange={handleShippingChange} 
               />
 
               {/* Vận chuyển & thanh toán */}
@@ -118,6 +141,7 @@ export default function PaymentsPage() {
                 coupon={coupon}
                 onCouponChange={setCoupon}
                 isEmpty={isEmpty}
+                shippingAddress={shippingData}
               />
             </aside>
           </div>

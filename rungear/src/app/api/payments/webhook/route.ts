@@ -5,27 +5,20 @@ import { supabaseAdmin } from "@/libs/supabase/supabase-admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Helper: convert order_code to safe number for bigint comparison
-function asOrderCodeNumber(v: unknown): number | null {
-  if (typeof v === "number" && Number.isFinite(v)) return v;
-  if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) {
-    const n = Number(v.trim());
-    if (n > Number.MAX_SAFE_INTEGER || n < Number.MIN_SAFE_INTEGER) {
-      console.warn("order_code exceeds safe integer range:", n);
-      return null;
-    }
-    return n;
-  }
+// Helper: convert order_code to safe format for comparison
+function normalizeOrderCode(v: unknown): string | null {
+  if (typeof v === "number") return v.toString();
+  if (typeof v === "string" && v.trim() !== "") return v.trim();
   return null;
 }
 
+// Build signature data from payload (sorted keys)
 function buildSignatureData(obj: Record<string, unknown>): string {
   const keys = Object.keys(obj).sort();
   return keys
     .map((k) => {
       let v = obj[k];
-      if (v === null || v === undefined || v === "null" || v === "undefined")
-        v = "";
+      if (v === null || v === undefined) v = "";
       else if (typeof v === "object") v = JSON.stringify(v);
       return `${k}=${v}`;
     })
@@ -33,21 +26,26 @@ function buildSignatureData(obj: Record<string, unknown>): string {
 }
 
 export async function GET() {
-  return NextResponse.json({ ok: true, message: "Webhook is alive" });
+  return NextResponse.json({ ok: true, message: "Webhook endpoint is alive" });
 }
 
 export async function POST(req: NextRequest) {
-  try {
-    const payload: unknown = await req.json();
+  const startTime = Date.now();
+  console.log("\n🔔 ===== WEBHOOK RECEIVED =====");
 
-    // Type guard for payload
+  try {
+    // 1. Parse payload
+    const payload: unknown = await req.json();
+    console.log("📦 Raw payload:", JSON.stringify(payload, null, 2));
+
+    // Type guard
     if (
       !payload ||
       typeof payload !== "object" ||
       !("data" in payload) ||
       !("signature" in payload)
     ) {
-      console.error("❌ Webhook: missing data/signature");
+      console.error("❌ Invalid payload structure");
       return NextResponse.json(
         { ok: false, reason: "missing data/signature" },
         { status: 400 }
@@ -60,18 +58,10 @@ export async function POST(req: NextRequest) {
       code?: string;
     };
 
-    if (!data || !signature) {
-      console.error("❌ Webhook: empty data or signature");
-      return NextResponse.json(
-        { ok: false, reason: "missing data/signature" },
-        { status: 400 }
-      );
-    }
-
-    // Verify signature
+    // 2. Verify signature
     const checksumKey = process.env.PAYOS_CHECKSUM_KEY;
     if (!checksumKey) {
-      console.error("❌ Webhook: PAYOS_CHECKSUM_KEY not configured");
+      console.error("❌ PAYOS_CHECKSUM_KEY not configured");
       return NextResponse.json(
         { ok: false, reason: "server misconfigured" },
         { status: 500 }
@@ -79,121 +69,210 @@ export async function POST(req: NextRequest) {
     }
 
     const raw = buildSignatureData(data);
-    const expected = crypto
+    const expectedSignature = crypto
       .createHmac("sha256", checksumKey)
       .update(raw)
       .digest("hex");
 
-    if (signature !== expected) {
-      console.error("❌ Invalid webhook signature");
-      console.error("Expected:", expected);
-      console.error("Received:", signature);
+    console.log("🔐 Signature verification:");
+    console.log("   Raw data:", raw);
+    console.log("   Expected:", expectedSignature);
+    console.log("   Received:", signature);
+
+    if (signature !== expectedSignature) {
+      console.error("❌ SIGNATURE MISMATCH - Possible tampering!");
       return NextResponse.json(
         { ok: false, reason: "invalid signature" },
         { status: 401 }
       );
     }
 
-    console.log("✅ Webhook signature verified");
+    console.log("✅ Signature verified");
 
-    // Extract order data
-    const { orderCode, amount, paymentLinkId, status } = data;
+    // 3. Extract data from webhook
+    const {
+      orderCode,
+      amount,
+      paymentLinkId,
+      status,
+      transactionDateTime,
+    } = data;
 
-    // Convert orderCode to safe number for bigint comparison
-    const codeNum = asOrderCodeNumber(orderCode);
-    if (codeNum === null) {
+    const orderCodeStr = normalizeOrderCode(orderCode);
+    if (!orderCodeStr) {
       console.error("❌ Invalid orderCode:", orderCode);
       return NextResponse.json(
         { ok: false, reason: "invalid orderCode" },
         { status: 400 }
       );
     }
+    console.log(`📌 Normalized orderCode: "${orderCodeStr}" (type: ${typeof orderCode})`);
 
-    // Determine success status
-    const success = status === "PAID" || code === "00";
-    const orderStatus = success ? "PAID" : "FAILED";
+    // Determine payment success
+    const isSuccess = status === "PAID" || code === "00";
+    const orderStatus = isSuccess ? "PAID" : "FAILED";
 
-    console.log(
-      `📦 Processing order #${codeNum}: status=${orderStatus}, amount=${amount}`
-    );
+    console.log(`\n📋 Order Details:`);
+    console.log(`   Order Code: ${orderCodeStr}`);
+    console.log(`   Amount: ${amount}`);
+    console.log(`   Status: ${orderStatus}`);
+    console.log(`   Payment Link ID: ${paymentLinkId}`);
+    console.log(`   Transaction Time: ${transactionDateTime}`);
 
-    // ✅ Use admin client to bypass RLS
+    // 4. Initialize Supabase admin client (bypass RLS)
     const admin = supabaseAdmin();
 
-    // Update database with idempotent protection
-    const { error } = await admin
+    // 5. Find order by order_code
+    console.log(`\n🔍 Finding order with code: ${orderCodeStr}`);
+    let { data: existingOrder, error: findError } = await admin
       .from("orders")
-      .update({
-        status: orderStatus,
-        paid_at: success ? new Date().toISOString() : null,
-        payment_link_id:
-          typeof paymentLinkId === "string" ? paymentLinkId : null,
-      })
-      .eq("order_code", codeNum)
-      .neq("status", "PAID"); // idempotent: don't overwrite already paid orders
+      .select("id, order_code, status, discount_code_id, user_id")
+      .eq("order_code", orderCodeStr)
+      .maybeSingle();
 
-    if (error) {
-      console.error("❌ Database update error:", error);
+      // Try 2: If not found, try with "ORD" prefix
+    if (!existingOrder && !findError) {
+      const withPrefix = `ORD${orderCodeStr}`;
+      console.log(`   🔍 Trying with prefix: "${withPrefix}"`);
+      
+      const result = await admin
+        .from("orders")
+        .select("id, order_code, status, discount_code_id, user_id")
+        .eq("order_code", withPrefix)
+        .maybeSingle();
+      
+      existingOrder = result.data;
+      findError = result.error;
+    }
+
+    if (findError) {
+      console.error("❌ Database error:", findError);
       return NextResponse.json(
-        { ok: false, error: error.message },
+        { ok: false, reason: "database_error", error: findError.message },
         { status: 500 }
       );
     }
 
-    // ✅ Increment discount code usage if payment successful
-    if (success) {
-      const { data: order } = await admin
+    if (!existingOrder) {
+      console.error("❌ Order not found for code:", orderCodeStr);
+      
+      // DEBUG: Show recent orders
+      const { data: recentOrders } = await admin
         .from("orders")
-        .select("discount_code_id")
-        .eq("order_code", codeNum)
+        .select("order_code, status, created_at")
+        .order("created_at", { ascending: false })
+        .limit(5);
+      
+      console.error("\n📋 Recent orders in DB:");
+      recentOrders?.forEach(o => {
+        console.error(`   - ${o.order_code} (${o.status}) [${o.created_at}]`);
+      });
+      
+      return NextResponse.json(
+        { 
+          ok: false, 
+          reason: "order_not_found",
+          searchedCodes: [orderCodeStr, `ORD${orderCodeStr}`],
+        },
+        { status: 404 }
+      );
+    }
+
+    console.log(`✅ Order found: ID=${existingOrder.id}, Code=${existingOrder.order_code}, Status=${existingOrder.status}`);
+    
+    // 6. Idempotent check - don't update if already PAID
+    if (existingOrder.status === "PAID") {
+      console.log("⚠️  Order already marked as PAID - skipping update (idempotent)");
+      return NextResponse.json({
+        ok: true,
+        orderCode: orderCodeStr,
+        status: "PAID",
+        message: "already processed",
+      });
+    }
+
+    // 7. Update order status
+    console.log(`\n📝 Updating order status to: ${orderStatus}`);
+    const { error: updateError } = await admin
+      .from("orders")
+      .update({
+        status: orderStatus,
+        paid_at: isSuccess ? new Date().toISOString() : null,
+        payment_link_id: typeof paymentLinkId === "string" ? paymentLinkId : null,
+      })
+      .eq("id", existingOrder.id);
+
+    if (updateError) {
+      console.error("❌ Failed to update order:", updateError);
+      return NextResponse.json(
+        { ok: false, error: updateError.message },
+        { status: 500 }
+      );
+    }
+
+    console.log("✅ Order status updated successfully");
+
+    // 8. Increment discount code usage (only if payment successful)
+    if (isSuccess && existingOrder.discount_code_id) {
+      console.log(`\n🎟️  Processing discount code: ${existingOrder.discount_code_id}`);
+
+      const { data: discountCode, error: dcSelectError } = await admin
+        .from("discount_codes")
+        .select("uses_count, code")
+        .eq("id", existingOrder.discount_code_id)
         .single();
 
-      if (order?.discount_code_id) {
-        // Read current uses_count first, then update to avoid using admin.sql (not available on the client)
-        const { data: discountRow, error: discountSelectError } = await admin
+      if (dcSelectError) {
+        console.error("⚠️  Failed to read discount code:", dcSelectError.message);
+      } else {
+        const currentUses =
+          typeof discountCode?.uses_count === "number"
+            ? discountCode.uses_count
+            : 0;
+        const newCount = currentUses + 1;
+
+        console.log(`   Code: ${discountCode.code}`);
+        console.log(`   Uses: ${currentUses} → ${newCount}`);
+
+        const { error: dcUpdateError } = await admin
           .from("discount_codes")
-          .select("uses_count")
-          .eq("id", order.discount_code_id)
-          .single();
+          .update({ uses_count: newCount })
+          .eq("id", existingOrder.discount_code_id);
 
-        if (discountSelectError) {
-          console.error("⚠️ Failed to read discount usage:", discountSelectError);
-          // Don't fail the webhook for this
+        if (dcUpdateError) {
+          console.error("⚠️  Failed to increment discount usage:", dcUpdateError.message);
         } else {
-          const currentUses =
-            typeof discountRow?.uses_count === "number"
-              ? discountRow.uses_count
-              : Number(discountRow?.uses_count) || 0;
-          const newCount = currentUses + 1;
-
-          const { error: discountError } = await admin
-            .from("discount_codes")
-            .update({ uses_count: newCount })
-            .eq("id", order.discount_code_id);
-
-          if (discountError) {
-            console.error("⚠️ Failed to increment discount usage:", discountError);
-            // Don't fail the webhook for this
-          } else {
-            console.log(`✅ Incremented discount code usage for order #${codeNum}`);
-          }
+          console.log("✅ Discount code usage incremented");
         }
       }
     }
 
-    console.log(
-      `✅ Order #${codeNum} updated to ${orderStatus} (amount=${amount})`
-    );
+    // 9. Optional: Clear user's cart after successful payment
+    if (isSuccess) {
+      console.log(`\n🛒 Clearing cart for user: ${existingOrder.user_id}`);
+      // Implement cart clearing logic here if needed
+      // Example:
+      // await admin.from("cart_items").delete().eq("user_id", existingOrder.user_id);
+    }
 
-    // Return success response to PayOS
-    return NextResponse.json({
-      ok: true,
-      orderCode: codeNum,
-      status: orderStatus,
-    });
+    const processingTime = Date.now() - startTime;
+    console.log(`\n✅ ===== WEBHOOK PROCESSED (${processingTime}ms) =====\n`);
+
+    // 10. Return success response to PayOS
+    return NextResponse.json(
+      {
+        ok: true,
+        orderCode: orderCodeStr,
+        status: orderStatus,
+        processingTime: `${processingTime}ms`,
+      },
+      { status: 200 }
+    );
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : "internal_error";
     console.error("❌ Webhook error:", err);
+    console.error("Stack:", err instanceof Error ? err.stack : "");
+
     return NextResponse.json(
       { ok: false, error: errorMessage },
       { status: 500 }
