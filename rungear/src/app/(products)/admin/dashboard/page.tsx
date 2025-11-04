@@ -21,21 +21,51 @@ function getMessage(err: unknown) {
   return String(err);
 }
 
-// Order type + type guard
-type Order = {
+/** ---- Orders typing & mapping ---- */
+type OrderRow = {
   id: string;
+  order_code: string;
   created_at: string;
-  customer_name?: string | null;
-  total: number | string;
-  status?: string;
+  total: string | number; // Supabase numeric thường trả về string
+  status: string | null;
+  shipping_address: null | {
+    full_name?: string | null;
+    name?: string | null;
+    recipient?: string | null;
+    phone?: string | null;
+  };
 };
-function isOrder(v: unknown): v is Order {
+
+type OrderVM = {
+  id: string;
+  order_code: string;
+  created_at: string;
+  total: string | number;
+  status: string; // normalized
+  customer_name: string | null;
+};
+
+function toVM(r: OrderRow): OrderVM {
+  const sa = r.shipping_address || {};
+  const name = (sa.full_name ?? sa.name ?? sa.recipient ?? null) ?? null;
+  return {
+    id: r.id,
+    order_code: r.order_code,
+    created_at: r.created_at,
+    total: r.total,
+    status: (r.status ?? "PENDING").toUpperCase(),
+    customer_name: name,
+  };
+}
+
+function isOrder(v: unknown): v is OrderVM {
   return (
     typeof v === "object" &&
     v !== null &&
     "id" in v &&
     "created_at" in v &&
-    "total" in v
+    "total" in v &&
+    "order_code" in v
   );
 }
 
@@ -44,10 +74,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  // Thêm state cho lịch sử đơn hàng gần đây
-  const [orders, setOrders] = useState<unknown[]>([]);
+  // lịch sử đơn hàng gần đây
+  const [orders, setOrders] = useState<OrderVM[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
 
+  // lấy stats
   useEffect(() => {
     (async () => {
       try {
@@ -65,7 +96,7 @@ export default function DashboardPage() {
     })();
   }, []);
 
-  // Lấy danh sách đơn hàng gần đây
+  // lấy đơn hàng gần đây
   useEffect(() => {
     (async () => {
       setOrdersLoading(true);
@@ -73,11 +104,15 @@ export default function DashboardPage() {
         const sb = supabaseBrowser();
         const { data, error } = await sb
           .from("orders")
-          .select("id, created_at, customer_name, total, status")
+          .select(
+            "id, order_code, created_at, total, status, shipping_address"
+          )
           .order("created_at", { ascending: false })
           .limit(5);
         if (error) throw error;
-        setOrders((data ?? []) as unknown[]);
+
+        const rows = (data ?? []) as OrderRow[];
+        setOrders(rows.map(toVM));
       } catch (e: unknown) {
         console.error(getMessage(e));
       } finally {
@@ -104,10 +139,12 @@ export default function DashboardPage() {
         </svg>
         Dashboard
       </h1>
+
       {loading && (
         <div className="animate-pulse text-blue-600">Đang tải thống kê…</div>
       )}
-      {err && <p className="text-red-600">{err}</p>}
+      {/* {err && <p className="text-red-600">{err}</p>} */}
+
       {stats && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
           <Card
@@ -194,6 +231,7 @@ export default function DashboardPage() {
           </svg>
           Đơn hàng gần đây
         </h2>
+
         {ordersLoading ? (
           <div className="animate-pulse text-blue-600">Đang tải đơn hàng…</div>
         ) : orders.filter(isOrder).length === 0 ? (
@@ -221,40 +259,46 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {orders.filter(isOrder).map((o) => (
-                  <tr
-                    key={o.id}
-                    className="border-t hover:bg-blue-50 transition"
-                  >
-                    <td className="p-3 font-mono text-blue-700">{o.id}</td>
-                    <td className="p-3">
-                      {o.customer_name || (
-                        <span className="text-gray-400">Khách lẻ</span>
-                      )}
-                    </td>
-                    <td className="p-3">
-                      {new Date(o.created_at).toLocaleString("vi-VN")}
-                    </td>
-                    <td className="p-3 font-semibold text-blue-700">
-                      {Number(o.total).toLocaleString()} ₫
-                    </td>
-                    <td className="p-3">
-                      <span
-                        className={`px-2 py-1 rounded-lg border text-xs font-semibold
-                          ${
-                            o.status === "PAID"
-                              ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                              : o.status === "CANCEL"
-                              ? "bg-red-50 border-red-200 text-red-700"
-                              : "bg-yellow-50 border-yellow-200 text-yellow-700"
-                          }
-                      `}
-                      >
-                        {o.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {orders.filter(isOrder).map((o) => {
+                  const status = o.status?.toUpperCase?.() ?? "PENDING";
+                  const isPaid = status === "PAID";
+                  const isCancel = status === "CANCEL" || status === "CANCELLED";
+                  return (
+                    <tr
+                      key={o.id}
+                      className="border-t hover:bg-blue-50 transition"
+                    >
+                      <td className="p-3 font-mono text-blue-700">
+                        {o.order_code}
+                      </td>
+                      <td className="p-3">
+                        {o.customer_name || (
+                          <span className="text-gray-400">Khách lẻ</span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {new Date(o.created_at).toLocaleString("vi-VN")}
+                      </td>
+                      <td className="p-3 font-semibold text-blue-700">
+                        {Number(o.total).toLocaleString("vi-VN")} ₫
+                      </td>
+                      <td className="p-3">
+                        <span
+                          className={`px-2 py-1 rounded-lg border text-xs font-semibold
+                            ${
+                              isPaid
+                                ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                                : isCancel
+                                ? "bg-red-50 border-red-200 text-red-700"
+                                : "bg-yellow-50 border-yellow-200 text-yellow-700"
+                            }`}
+                        >
+                          {status}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
