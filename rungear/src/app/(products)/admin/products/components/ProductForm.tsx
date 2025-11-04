@@ -12,27 +12,28 @@ import {
 } from "formik";
 import * as Yup from "yup";
 import AdminImageUploader from "@/components/uploader/AdminImageUploader";
+import type { ProductInput } from "@/modules/products/model/product-public";
 
-type ProductInput = {
-  name: string;
-  price: number;
-  stock: number;
-  images?: string | null;
-  status: "draft" | "active" | "hidden";
-  categories_id:
-    | "1d4478e7-c9d2-445e-8520-14dae73aac68"
-    | "3c0144cf-7a2e-4c59-8ad7-351a27d2fc1d"
-    | "e9819e30-a5dc-4cd1-835d-206bb882fc09";
-};
+// type ProductInput = {
+//   name: string;
+//   price: number;
+//   stock: number;
+//   images?: string | null;
+//   status: "draft" | "active" | "hidden";
+//   categories_id:
+//     | "1d4478e7-c9d2-445e-8520-14dae73aac68"
+//     | "3c0144cf-7a2e-4c59-8ad7-351a27d2fc1d"
+//     | "e9819e30-a5dc-4cd1-835d-206bb882fc09";
+// };
 
 type Product = ProductInput & { id: string };
 
-type Props = {
-  initial?: Product;
-  onClose: () => void;
-  onSaved: () => void;
-};
 
+type Props = {
+  initial?: ProductInput;
+  onClose: () => void;
+  onSaved: (values: ProductInput) => void | Promise<void>;
+};
 
 const validationSchema = Yup.object({
   name: Yup.string().trim().required("Tên sản phẩm bắt buộc"),
@@ -137,7 +138,7 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
         throw new Error(j?.error ?? j?.message ?? "Save failed");
       }
 
-      onSaved();
+      onSaved(payload);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setSubmitError(msg);
@@ -320,7 +321,7 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
                       {isAdmin === true && (
                         <AdminImageUploader
                           folder={`products/${
-                            initial?.id || crypto.randomUUID()
+                            (initial as Product)?.id || crypto.randomUUID()
                           }`}
                           onPreview={(previewUrl) => {
                             setPreviewSrc(previewUrl);
