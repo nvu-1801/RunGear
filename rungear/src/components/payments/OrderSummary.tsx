@@ -25,7 +25,18 @@ type Props = {
   coupon: string;
   onCouponChange: (v: string) => void;
   isEmpty: boolean;
+  shippingAddress?: {
+    full_name: string;
+    phone: string;
+    email: string;
+    address_line: string;
+    province: string;
+    district: string;
+    note?: string;
+  } | null;
 };
+
+
 
 const DEFAULT_SHIPPING_FEE = 20000; // 20k
 const FREE_SHIPPING_THRESHOLD = 300000; // 300k
@@ -38,10 +49,16 @@ export function OrderSummary({
   coupon,
   onCouponChange,
   isEmpty,
+  shippingAddress, // ← NHẬN prop
 }: Props) {
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
   const [appliedCode, setAppliedCode] = useState<DiscountCode | null>(null);
   const [message, setMessage] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false); 
+
+  
+  console.log("Shipping Address in OrderSummaryoidoioi:", shippingAddress);
+ 
 
   // Load discount codes on mount
   useEffect(() => {
@@ -82,6 +99,104 @@ export function OrderSummary({
     : 0;
 
   const finalTotal = Math.max(0, subtotal + shippingFee - calculatedDiscount);
+
+  // ← THÊM hàm xử lý đặt hàng
+  const handlePlaceOrder = async () => {
+    // 1. Validate shipping address
+    if (!shippingAddress) {
+      alert("Vui lòng điền thông tin giao hàng!");
+      return;
+    }
+
+    if (
+      !shippingAddress.full_name ||
+      !shippingAddress.phone ||
+      !shippingAddress.email ||
+      !shippingAddress.address_line ||
+      !shippingAddress.province ||
+      !shippingAddress.district
+    ) {
+      alert("Vui lòng điền đầy đủ thông tin giao hàng!");
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      // 2. Chuẩn bị payload
+      const orderPayload = {
+        items: items.map((item) => ({
+          id: item.id,
+          name: item.name,
+          variant: item.variant ?? null,
+          qty: item.qty,
+          price: item.price,
+        })),
+        discount_code_id: appliedCode?.id ?? null,
+        shipping_address: {
+          full_name: shippingAddress.full_name,
+          phone: shippingAddress.phone,
+          email: shippingAddress.email,
+          address_line: shippingAddress.address_line,
+          province: shippingAddress.province,
+          district: shippingAddress.district,
+          note: shippingAddress.note || null,
+        },
+        subtotal: subtotal,
+        discount: calculatedDiscount,
+        shipping_fee: shippingFee,
+        total: finalTotal,
+      };
+
+      console.log("Creating order with payload:", orderPayload);
+
+      // 3. Gọi API POST /api/orders
+      const orderRes = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(orderPayload),
+      });
+
+      const orderResult = await orderRes.json();
+
+      if (!orderResult.success) {
+        throw new Error(orderResult.message || "Tạo đơn hàng thất bại");
+      }
+
+      const { orderId, orderCode } = orderResult.data;
+      console.log("Order created:", { orderId, orderCode });
+
+      // 4. Gọi API tạo payment link
+      const paymentRes = await fetch("/api/payments/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderCode: orderCode,
+          amount: finalTotal,
+          description: `Thanh toán đơn hàng`,
+          discountCodeId: appliedCode?.id ?? null,
+        }),
+      });
+
+      const paymentResult = await paymentRes.json();
+      const checkoutUrl = paymentResult?.data?.checkoutUrl;
+
+      if (!checkoutUrl) {
+        throw new Error(
+          paymentResult?.desc || paymentResult?.message || "Tạo link thanh toán thất bại"
+        );
+      }
+
+      console.log("Payment link created:", checkoutUrl);
+
+      // 5. Redirect đến PayOS
+      window.location.href = checkoutUrl;
+    } catch (error: any) {
+      console.error("Place order error:", error);
+      alert(error.message || "Có lỗi xảy ra khi đặt hàng!");
+      setIsProcessing(false);
+    }
+  };
 
   const handleApplyCoupon = () => {
     setMessage("");
@@ -327,32 +442,11 @@ export function OrderSummary({
         </div>
 
         <button
-          disabled={isEmpty}
-          className="mt-7 w-full rounded-xl bg-blue-700 text-white py-4 text-base font-semibold shadow-lg hover:bg-blue-800 transition disabled:opacity-50"
-          onClick={async () => {
-            const orderCode = Date.now();
-            const res = await fetch("/api/payments/create", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                orderCode,
-                amount: finalTotal,
-                // amount: 2000,
-                description: "Thanh toán đơn hàng # + ",
-                discountCodeId: appliedCode?.id ?? null,
-              }),
-            });
-
-            const data = await res.json();
-            const url = data?.data?.checkoutUrl;
-            if (url) {
-              window.location.href = url;
-            } else {
-              alert(data?.desc || "Tạo thanh toán thất bại!");
-            }
-          }}
+           disabled={isEmpty || isProcessing}
+          className="mt-7 w-full rounded-xl bg-blue-700 text-white py-4 text-base font-semibold shadow-lg hover:bg-blue-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={handlePlaceOrder}
         >
-          Đặt hàng
+          {isProcessing ? "Đang xử lý..." : "Đặt hàng"}
         </button>
 
         <p className="mt-4 text-xs text-gray-500 text-center">
