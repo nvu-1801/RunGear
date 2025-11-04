@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/libs/supabase/supabase-client";
 import { formatPriceVND } from "@/shared/price";
 import Link from "next/link";
 
+/* ======================== types & helpers ======================== */
 type OrderStatus = "PENDING" | "PROCESSING" | "PAID" | "CANCELLED" | "FAILED";
 
 type Order = {
   id: string;
-  order_code: number; // bigint from DB, treated as number in JS
+  order_code: number; // bigint
   total: number;
   status: OrderStatus;
   created_at: string;
@@ -19,62 +20,71 @@ type Order = {
   shipping_address: unknown;
 };
 
+type ProductLite = {
+  id: string;
+  name: string;
+  slug: string;
+  price: number;
+  images: string | string[] | null;
+  stock: number;
+  status: string;
+};
+
+type OrderItem = {
+  id: string;
+  qty: number;
+  price_at_time: number;
+  product: ProductLite | null;
+};
+
+type OrderDetail = {
+  id: string;
+  order_code: number | string;
+  created_at: string;
+  status: OrderStatus | string;
+  total: number;
+  amount: number;
+  discount_amount: number;
+  shipping_address: {
+    full_name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    address_line?: string | null;
+    district?: string | null;
+    province?: string | null;
+    note?: string | null;
+  } | null;
+  order_items: OrderItem[];
+};
+
 const STATUS_CONFIG: Record<
   OrderStatus,
   { label: string; color: string; bg: string; icon: string; gradient: string }
 > = {
-  PENDING: {
-    label: "Chờ xử lý",
-    color: "text-yellow-700",
-    bg: "bg-yellow-50 border-yellow-200",
-    gradient: "from-yellow-400 to-orange-400",
-    icon: "⏳",
-  },
-  PROCESSING: {
-    label: "Đang xử lý",
-    color: "text-blue-700",
-    bg: "bg-blue-50 border-blue-200",
-    gradient: "from-blue-400 to-cyan-400",
-    icon: "🔄",
-  },
-  PAID: {
-    label: "Đã thanh toán",
-    color: "text-green-700",
-    bg: "bg-green-50 border-green-200",
-    gradient: "from-green-400 to-emerald-400",
-    icon: "✅",
-  },
-  CANCELLED: {
-    label: "Đã hủy",
-    color: "text-gray-600",
-    bg: "bg-gray-50 border-gray-200",
-    gradient: "from-gray-400 to-slate-400",
-    icon: "❌",
-  },
-  FAILED: {
-    label: "Thất bại",
-    color: "text-red-700",
-    bg: "bg-red-50 border-red-200",
-    gradient: "from-red-400 to-rose-400",
-    icon: "⚠️",
-  },
+  PENDING:   { label: "Chờ xử lý",   color: "text-yellow-700", bg: "bg-yellow-50 border-yellow-200", gradient: "from-yellow-400 to-orange-400", icon: "⏳" },
+  PROCESSING:{ label: "Đang xử lý",  color: "text-blue-700",   bg: "bg-blue-50 border-blue-200",     gradient: "from-blue-400 to-cyan-400",   icon: "🔄" },
+  PAID:      { label: "Đã thanh toán", color: "text-green-700", bg: "bg-green-50 border-green-200",   gradient: "from-green-400 to-emerald-400", icon: "✅" },
+  CANCELLED: { label: "Đã hủy",      color: "text-gray-600",   bg: "bg-gray-50 border-gray-200",     gradient: "from-gray-400 to-slate-400",  icon: "❌" },
+  FAILED:    { label: "Thất bại",    color: "text-red-700",    bg: "bg-red-50 border-red-200",        gradient: "from-red-400 to-rose-400",    icon: "⚠️" },
 };
 
-// Helper to normalize order_code for queries (handle bigint safely)
-function asOrderCodeNumber(v: unknown): number | null {
-  if (typeof v === "number" && Number.isFinite(v)) return v;
-  if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) {
-    const n = Number(v.trim());
-    // Check safe integer range (JS number can safely represent up to 2^53-1)
-    if (n > Number.MAX_SAFE_INTEGER || n < Number.MIN_SAFE_INTEGER) {
-      console.warn("order_code exceeds safe integer range:", n);
-      return null;
-    }
-    return n;
-  }
-  return null;
+function StatusBadge({ v }: { v: string }) {
+  const value = v.toUpperCase() as OrderStatus;
+  const cfg = STATUS_CONFIG[value] ?? STATUS_CONFIG.PENDING;
+  return (
+    <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold ${cfg.color} ${cfg.bg} border`}>
+      <span>{cfg.icon}</span>{cfg.label}
+    </span>
+  );
 }
 
+function imagesOf(p: ProductLite | null) {
+  if (!p) return null;
+  if (Array.isArray(p.images)) return p.images[0] ?? null;
+  return p.images ?? null;
+}
+
+/* ======================== component ======================== */
 export default function OrdersPage() {
   const sb = supabaseBrowser();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -82,6 +92,12 @@ export default function OrdersPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // modal detail state
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<OrderDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  /* ----------- load list ----------- */
   useEffect(() => {
     (async () => {
       try {
@@ -111,83 +127,93 @@ export default function OrdersPage() {
     })();
   }, [sb]);
 
-  // Loading state with animation
+  /* ----------- load detail when openId changes ----------- */
+  useEffect(() => {
+    if (!openId || !userId) return;
+    (async () => {
+      setDetail(null);
+      setDetailLoading(true);
+      try {
+        const { data, error } = await sb
+          .from("orders")
+          .select(`
+            id,
+            order_code,
+            created_at,
+            status,
+            total,
+            amount,
+            discount_amount,
+            shipping_address,
+            order_items (
+              id,
+              qty,
+              price_at_time,
+              product:products ( id, name, slug, price, images, stock, status )
+            )
+          `)
+          .eq("id", openId)
+          .eq("user_id", userId) // bảo vệ truy cập
+          .single();
+
+        if (error) throw error;
+
+        const normalized: OrderDetail = {
+          id: data.id,
+          order_code: data.order_code,
+          created_at: data.created_at,
+          status: (data.status ?? "PENDING").toString(),
+          total: Number(data.total),
+          amount: Number(data.amount),
+          discount_amount: Number(data.discount_amount ?? 0),
+          shipping_address: data.shipping_address ?? null,
+          order_items: (data.order_items ?? []).map((it: any) => {
+            const raw = it.product ?? null;
+            const product: ProductLite | null = !raw
+              ? null
+              : Array.isArray(raw)
+              ? (raw[0] ?? null)
+              : raw;
+            return {
+              id: it.id,
+              qty: Number(it.qty),
+              price_at_time: Number(it.price_at_time ?? 0),
+              product,
+            };
+          }),
+        };
+
+        setDetail(normalized);
+      } catch (e) {
+        console.error("Load order detail error:", e);
+      } finally {
+        setDetailLoading(false);
+      }
+    })();
+  }, [openId, userId, sb]);
+
+  /* ======================== screens (loading / login / error) ======================== */
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in-95 duration-700">
-          <svg
-            className="animate-spin h-12 w-12 text-blue-600"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            />
+        <div className="flex flex-col items-center gap-4">
+          <svg className="animate-spin h-12 w-12 text-blue-600" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.37 0 0 5.37 0 12h4z" />
           </svg>
-          <p className="text-gray-600 font-medium animate-pulse">
-            Đang tải đơn hàng...
-          </p>
+          <p className="text-gray-600 font-medium animate-pulse">Đang tải đơn hàng...</p>
         </div>
       </div>
     );
   }
 
-  // Not logged in state
   if (!userId) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center animate-in fade-in zoom-in-95 slide-in-from-bottom-8 duration-700">
-          <div className="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center mb-6 animate-in zoom-in-95 duration-700 delay-150">
-            <svg
-              className="w-10 h-10 text-white"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-              />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-3 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
-            Bạn cần đăng nhập
-          </h2>
-          <p className="text-sm text-gray-600 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
-            Để xem trạng thái đơn hàng, vui lòng đăng nhập vào tài khoản của
-            bạn.
-          </p>
-          <Link
-            href="/auth/signin"
-            className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-[400ms]"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
-              />
-            </svg>
+        <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center">
+          <h2 className="text-2xl font-bold text-gray-800 mb-3">Bạn cần đăng nhập</h2>
+          <p className="text-sm text-gray-600 mb-8">Để xem trạng thái đơn hàng.</p>
+          <Link href="/auth/signin" className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold">
             Đăng nhập ngay
           </Link>
         </div>
@@ -195,311 +221,102 @@ export default function OrdersPage() {
     );
   }
 
-  // Error state
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center animate-in fade-in zoom-in-95 duration-700">
-          <div className="mx-auto w-20 h-20 rounded-full bg-red-100 flex items-center justify-center mb-6">
-            <svg
-              className="w-10 h-10 text-red-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-3">
-            Có lỗi xảy ra
-          </h2>
+        <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center">
+          <h2 className="text-2xl font-bold text-gray-800 mb-3">Có lỗi xảy ra</h2>
           <p className="text-sm text-gray-600 mb-6">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-red-600 text-white font-semibold hover:bg-red-700 transition"
-          >
-            Thử lại
-          </button>
+          <button onClick={() => window.location.reload()} className="px-6 py-3 rounded-xl bg-red-600 text-white font-semibold">Thử lại</button>
         </div>
       </div>
     );
   }
 
+  /* ======================== main ======================== */
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
-        {/* Header with animation */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-10 animate-in fade-in slide-in-from-top-4 duration-700">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-10">
           <div>
             <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
               📦 Đơn hàng của bạn
             </h1>
-            <p className="text-gray-600">
-              Quản lý và theo dõi trạng thái đơn hàng
-            </p>
+            <p className="text-gray-600">Quản lý và theo dõi trạng thái đơn hàng</p>
           </div>
-          <Link
-            href="/home"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white text-gray-700 font-medium hover:bg-gray-50 border border-gray-200 transition-all duration-300 shadow-sm hover:shadow-md hover:scale-105 active:scale-95"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10 19l-7-7m0 0l7-7m-7 7h18"
-              />
-            </svg>
+          <Link href="/home" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white text-gray-700 font-medium hover:bg-gray-50 border border-gray-200">
             Tiếp tục mua sắm
           </Link>
         </div>
 
-        {/* Empty state with animation */}
+        {/* Empty */}
         {orders.length === 0 ? (
-          <div className="rounded-3xl border-2 border-dashed border-gray-200 bg-white/50 backdrop-blur-sm p-12 text-center shadow-xl animate-in fade-in zoom-in-95 slide-in-from-bottom-8 duration-700">
-            <div className="mx-auto w-24 h-24 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center mb-6 animate-in zoom-in-95 duration-700 delay-150">
-              <svg
-                className="w-12 h-12 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.5}
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
-                />
-              </svg>
-            </div>
-            <h3 className="text-2xl font-bold text-gray-800 mb-3 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
-              Chưa có đơn hàng
-            </h3>
-            <p className="text-gray-600 mb-8 max-w-sm mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
-              Khám phá các sản phẩm tuyệt vời và tạo đơn hàng đầu tiên của bạn
-              ngay hôm nay!
-            </p>
-            <Link
-              href="/home"
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3.5 text-sm font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-[400ms]"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
-                />
-              </svg>
+          <div className="rounded-3xl border-2 border-dashed border-gray-200 bg-white/50 p-12 text-center shadow-xl">
+            <h3 className="text-2xl font-bold text-gray-800 mb-3">Chưa có đơn hàng</h3>
+            <Link href="/home" className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3.5 text-sm font-semibold">
               Khám phá sản phẩm
             </Link>
           </div>
         ) : (
           <ul className="space-y-5">
-            {orders.map((order, index) => {
-              const config = STATUS_CONFIG[order.status];
-              const delay = `${index * 100}ms`;
-
+            {orders.map((order) => {
+              const cfg = STATUS_CONFIG[order.status];
               return (
-                <li
-                  key={order.id}
-                  className="animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-700"
-                  style={{ animationDelay: delay }}
-                >
-                  <div
-                    className={`group rounded-3xl border-2 p-6 md:p-8 shadow-lg transition-all duration-500 hover:shadow-2xl hover:-translate-y-1 bg-white/80 backdrop-blur-sm ${config.bg}`}
-                  >
-                    {/* Header */}
+                <li key={order.id}>
+                  <div className={`group rounded-3xl border-2 p-6 md:p-8 shadow-lg bg-white/80 ${cfg.bg}`}>
+                    {/* Header row */}
                     <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
                       <div className="flex items-start gap-4">
-                        <div
-                          className={`flex-shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br ${config.gradient} flex items-center justify-center text-2xl shadow-lg transform transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6`}
-                        >
-                          {config.icon}
+                        <div className={`flex-shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br ${cfg.gradient} flex items-center justify-center text-2xl shadow-lg`}>
+                          {cfg.icon}
                         </div>
                         <div>
-                          <h3 className="text-xl font-bold text-gray-800 mb-1 group-hover:text-blue-600 transition-colors">
+                          <h3 className="text-xl font-bold text-gray-800 mb-1">
                             Đơn hàng #{order.order_code}
                           </h3>
                           <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <svg
-                              className="w-4 h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                              />
-                            </svg>
-                            {new Date(order.created_at).toLocaleString(
-                              "vi-VN",
-                              {
-                                day: "2-digit",
-                                month: "2-digit",
-                                year: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              }
-                            )}
+                            {new Date(order.created_at).toLocaleString("vi-VN", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" })}
                           </div>
                         </div>
                       </div>
-                      <div
-                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${config.color} ${config.bg} border-2 shadow-md transition-all duration-300 group-hover:scale-105`}
-                      >
-                        <span>{config.icon}</span>
-                        {config.label}
-                      </div>
+                      <StatusBadge v={order.status} />
                     </div>
 
-                    {/* Details */}
-                    <div className="border-t-2 border-gray-100 pt-6 space-y-4">
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100">
-                          <span className="text-sm text-gray-700 font-medium">
-                            Tổng tiền:
-                          </span>
-                          <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                            {formatPriceVND(order.total)}
-                          </span>
-                        </div>
-
-                        {order.paid_at && (
-                          <div className="flex items-center justify-between p-4 rounded-xl bg-green-50 border border-green-100">
-                            <span className="text-sm text-gray-700 font-medium">
-                              Thanh toán lúc:
-                            </span>
-                            <span className="text-sm text-green-700 font-semibold">
-                              {new Date(order.paid_at).toLocaleString("vi-VN", {
-                                day: "2-digit",
-                                month: "2-digit",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
-                          </div>
-                        )}
+                    {/* Details summary */}
+                    <div className="border-t-2 border-gray-100 pt-6 grid md:grid-cols-2 gap-4">
+                      <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100">
+                        <span className="text-sm text-gray-700 font-medium">Tổng tiền:</span>
+                        <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                          {formatPriceVND(order.total)}
+                        </span>
                       </div>
-
-                      {order.payment_link_id && (
-                        <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
-                          <span className="text-sm text-gray-600 block mb-2">
-                            Mã giao dịch:
+                      {order.paid_at && (
+                        <div className="flex items-center justify-between p-4 rounded-xl bg-green-50 border border-green-100">
+                          <span className="text-sm text-gray-700 font-medium">Thanh toán lúc:</span>
+                          <span className="text-sm text-green-700 font-semibold">
+                            {new Date(order.paid_at).toLocaleString("vi-VN", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" })}
                           </span>
-                          <code className="text-xs text-gray-800 font-mono bg-white px-3 py-2 rounded-lg border border-gray-200 block break-all">
-                            {order.payment_link_id}
-                          </code>
                         </div>
                       )}
                     </div>
 
                     {/* Actions */}
                     <div className="mt-6 flex flex-wrap items-center gap-3 pt-6 border-t-2 border-gray-100">
+                      <button
+                        onClick={() => setOpenId(order.id)}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-gray-700 font-medium hover:bg-gray-50 border-2 border-gray-200"
+                      >
+                        Xem chi tiết
+                      </button>
                       {order.status === "PENDING" && (
                         <Link
                           href={`/checkout?order=${order.id}`}
-                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-semibold hover:from-yellow-600 hover:to-orange-600 transition-all duration-300 shadow-md hover:shadow-lg hover:scale-105 active:scale-95"
+                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-semibold"
                         >
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-                            />
-                          </svg>
                           Thanh toán ngay
                         </Link>
                       )}
-                      {order.status === "PAID" && (
-                        <Link
-                          href={`/orders/${order.id}`}
-                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold hover:from-green-600 hover:to-emerald-600 transition-all duration-300 shadow-md hover:shadow-lg hover:scale-105 active:scale-95"
-                        >
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                            />
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                            />
-                          </svg>
-                          Xem chi tiết
-                        </Link>
-                      )}
-                      {(order.status === "CANCELLED" ||
-                        order.status === "FAILED") && (
-                        <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold hover:bg-gray-200 transition-all duration-300 shadow-sm hover:shadow-md hover:scale-105 active:scale-95">
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                            />
-                          </svg>
-                          Đặt lại
-                        </button>
-                      )}
-                      <Link
-                        href="/contact"
-                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-gray-700 font-medium hover:bg-gray-50 border-2 border-gray-200 transition-all duration-300 hover:border-gray-300 hover:scale-105 active:scale-95"
-                      >
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
-                          />
-                        </svg>
-                        Liên hệ hỗ trợ
-                      </Link>
                     </div>
                   </div>
                 </li>
@@ -508,6 +325,138 @@ export default function OrdersPage() {
           </ul>
         )}
       </div>
+
+      {/* Modal detail (read-only giống dashboard) */}
+      {openId && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-3 backdrop-blur-sm">
+          <div className="w-full max-w-4xl overflow-hidden rounded-2xl border bg-white shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between gap-3 border-b bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+              <div className="flex flex-col">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-lg font-semibold text-slate-800">
+                    Đơn hàng <span className="font-mono text-blue-700">#{detail?.order_code ?? ""}</span>
+                  </h3>
+                  {detail && <StatusBadge v={detail.status} />}
+                </div>
+                {detail && (
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Tạo lúc {new Date(detail.created_at).toLocaleString("vi-VN")}
+                  </p>
+                )}
+              </div>
+              <button onClick={() => { setOpenId(null); setDetail(null); }} className="rounded-lg border px-3 py-1.5 text-sm hover:bg-slate-50">
+                Đóng
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="max-h-[72vh] overflow-auto px-5 py-4">
+              {detailLoading || !detail ? (
+                <div className="animate-pulse text-blue-600">Đang tải chi tiết…</div>
+              ) : (
+                <>
+                  {/* Customer & totals */}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-xl border bg-white p-4 shadow-sm">
+                      <p className="text-xs uppercase tracking-wide text-slate-500">Khách hàng</p>
+                      <p className="mt-1 font-medium text-slate-800">
+                        {detail.shipping_address?.full_name ?? "Khách lẻ"}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {detail.shipping_address?.phone} • {detail.shipping_address?.email}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {[
+                          detail.shipping_address?.address_line,
+                          detail.shipping_address?.district,
+                          detail.shipping_address?.province,
+                        ].filter(Boolean).join(", ")}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border bg-white p-4 shadow-sm">
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="rounded-lg bg-slate-50 p-3">
+                          <p className="text-slate-500">Giảm giá</p>
+                          <p className="font-semibold text-slate-800">
+                            {formatPriceVND(detail.discount_amount)}
+                          </p>
+                        </div>
+                        <div className="rounded-lg bg-slate-50 p-3">
+                          <p className="text-slate-500">Tổng thanh toán</p>
+                          <p className="font-semibold text-blue-800">
+                            {formatPriceVND(detail.total)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Items table */}
+                  <div className="mt-5 overflow-hidden rounded-xl border shadow-sm">
+                    <div className="max-h-[40vh] overflow-auto">
+                      <table className="min-w-full text-sm">
+                        <thead className="sticky top-0 z-10 bg-slate-50">
+                          <tr className="text-left text-slate-600">
+                            <th className="p-3">Sản phẩm</th>
+                            <th className="p-3 text-right">Đơn giá</th>
+                            <th className="p-3 text-right">SL</th>
+                            <th className="p-3 text-right">Thành tiền</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white">
+                          {detail.order_items.map((it) => (
+                            <tr key={it.id} className="border-t">
+                              <td className="p-3">
+                                <div className="flex items-center gap-3">
+                                  {imagesOf(it.product) ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={imagesOf(it.product) as string}
+                                      alt={it.product?.name ?? ""}
+                                      className="size-12 rounded-xl object-cover ring-1 ring-slate-200"
+                                    />
+                                  ) : (
+                                    <div className="size-12 rounded-xl bg-slate-100 ring-1 ring-slate-200" />
+                                  )}
+                                  <div>
+                                    <p className="font-medium text-slate-800">{it.product?.name}</p>
+                                    <p className="text-xs text-slate-500">{it.product?.slug}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="p-3 text-right">{formatPriceVND(it.price_at_time)}</td>
+                              <td className="p-3 text-right">{it.qty}</td>
+                              <td className="p-3 text-right">{formatPriceVND(it.qty * it.price_at_time)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Summary */}
+                  <div className="mt-5 flex flex-col items-end gap-1">
+                    <div className="text-sm text-slate-600">
+                      Tạm tính:{" "}
+                      {formatPriceVND(
+                        detail.order_items.reduce((s, it) => s + it.qty * it.price_at_time, 0)
+                      )}
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      Giảm giá: {formatPriceVND(detail.discount_amount)}
+                    </div>
+                    <div className="text-lg font-bold text-blue-800">
+                      Tổng: {formatPriceVND(detail.total)}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
