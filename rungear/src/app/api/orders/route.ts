@@ -5,42 +5,66 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = await supabaseServer();
 
+    // auth
     const {
       data: { user },
       error: userError,
     } = await supabase.auth.getUser();
-
     if (userError || !user) {
-      return NextResponse.json(
-        { success: false, message: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
 
-    const { data, error } = await supabase
+    // optional pagination
+    const url = new URL(req.url);
+    const limit = Number(url.searchParams.get("limit") ?? 20);
+    const offset = Number(url.searchParams.get("offset") ?? 0);
+
+    // orders + shipping address + items + product
+    const { data, error, count } = await supabase
       .from("orders")
-      .select("*, user_addresses(*)")
+      .select(
+        `
+        id,
+        order_code,
+        created_at,
+        status,
+        total,
+        amount,
+        discount_amount,
+        shipping_address,
+        shipping_address_id,
+        user_addresses(*),
+        order_items (
+          id,
+          qty,
+          price_at_time,
+          product:products (
+            id,
+            name,
+            slug,
+            price,
+            images,
+            stock,
+            status
+          )
+        )
+      `,
+        { count: "exact" }
+      )
       .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (error) {
       console.error("Supabase GET orders error:", error);
-      return NextResponse.json(
-        { success: false, message: error.message },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, message: error.message }, { status: 400 });
     }
 
-    console.log("GET orders success:", data);
-    return NextResponse.json({ success: true, data }, { status: 200 });
+    return NextResponse.json({ success: true, data, count }, { status: 200 });
   } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Internal Server Error";
+    const msg = error instanceof Error ? error.message : "Internal Server Error";
     console.error("GET orders error:", error);
-    return NextResponse.json(
-      { success: false, message: errorMessage },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, message: msg }, { status: 500 });
   }
 }
 
