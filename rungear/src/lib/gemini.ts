@@ -1,5 +1,9 @@
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
-import type { Tool, Schema, FunctionDeclarationSchema } from "@google/generative-ai";
+import type {
+  Tool,
+  Schema,
+  FunctionDeclarationSchema,
+} from "@google/generative-ai";
 import * as z from "zod";
 import {
   searchProductsSchema,
@@ -35,7 +39,7 @@ export const MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash-exp";
 const searchProductsJSON = z.toJSONSchema(searchProductsSchema);
 const getProductDetailsJSON = z.toJSONSchema(getProductDetailsSchema);
 
-/** Convert Zod JSON Schema to Gemini Schema */
+/** Convert Zod JSON Schema to Gemini Schema (return typed Schema for SDK) */
 function convertToGeminiSchema(jsonSchema: Record<string, unknown>): FunctionDeclarationSchema {
   const properties: Record<string, Schema> = {};
 
@@ -53,12 +57,12 @@ function convertToGeminiSchema(jsonSchema: Record<string, unknown>): FunctionDec
     type: SchemaType.OBJECT,
     properties,
     required: Array.isArray(jsonSchema.required)
-      ? jsonSchema.required
+      ? (jsonSchema.required as string[])
       : undefined,
-  };
+  } as unknown as FunctionDeclarationSchema;
 }
 
-/** Convert individual property to Gemini schema format */
+/** Convert individual property to Gemini schema format (return typed Schema) */
 function convertPropertyToGemini(prop: Record<string, unknown>): Schema {
   const propType = prop.type as string;
 
@@ -85,32 +89,28 @@ function convertPropertyToGemini(prop: Record<string, unknown>): Schema {
       schemaType = SchemaType.STRING;
   }
 
-  // Build a flexible object and cast to Schema at the end to satisfy TS union types
-  const result: any = {
+  const result: Partial<Schema> = {
     type: schemaType,
     description:
       typeof prop.description === "string" ? prop.description : undefined,
   };
 
-  // Handle enum
   if (Array.isArray(prop.enum)) {
-    result.enum = prop.enum as string[];
+    (result as any).enum = prop.enum as string[];
   }
 
-  // Handle array items
   if (schemaType === SchemaType.ARRAY && prop.items) {
-    result.items = convertPropertyToGemini(
+    (result as any).items = convertPropertyToGemini(
       prop.items as Record<string, unknown>
     );
   }
 
-  // Handle object properties
   if (schemaType === SchemaType.OBJECT && prop.properties) {
-    result.properties = {};
+    (result as any).properties = {};
     for (const [key, value] of Object.entries(
       prop.properties as Record<string, unknown>
     )) {
-      result.properties[key] = convertPropertyToGemini(
+      (result as any).properties[key] = convertPropertyToGemini(
         value as Record<string, unknown>
       );
     }
