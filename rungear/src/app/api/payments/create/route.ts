@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   try {
     const body: unknown = await req.json();
+    console.log(JSON.stringify(body, null, 2));
 
     // Type guard for body
     if (!body || typeof body !== "object") {
@@ -17,8 +18,23 @@ export async function POST(req: Request) {
     }
 
     const bodyObj = body as Record<string, unknown>;
-    const orderCode =
-      typeof bodyObj.orderCode === "number" ? bodyObj.orderCode : Date.now();
+    let orderCode: number;
+
+    if (typeof bodyObj.orderCode === "string" && bodyObj.orderCode.trim() !== "") {
+      // Loại bỏ prefix "ORD" nếu có
+      const cleaned = bodyObj.orderCode.replace(/^ORD/i, "");
+      orderCode = parseInt(cleaned, 10);
+
+      if (isNaN(orderCode)) {
+        orderCode = Date.now(); // Fallback nếu parse fail
+      }
+
+      console.log("📌 Converted orderCode: '{}' → {}", bodyObj.orderCode, orderCode);
+    } else if (typeof bodyObj.orderCode === "number") {
+      orderCode = bodyObj.orderCode;
+    } else {
+      orderCode = Date.now();
+    }
 
     const amount =
       typeof bodyObj.amount === "number" && bodyObj.amount > 0
