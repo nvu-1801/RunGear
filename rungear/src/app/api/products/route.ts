@@ -42,12 +42,18 @@ export async function GET(req: Request) {
   }
 }
 
-// API POST: Tạo sản phẩm mới
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    // body: { name, price, slug, description?, images?, categorySlug }
-    const created = await createProduct(body);
+    const raw = await req.json();
+
+    // Rửa input rất nhẹ
+    const clean = Object.fromEntries(
+      Object.entries(raw ?? {}).filter(
+        ([, v]) => !(v === undefined || (typeof v === "string" && v.trim() === "undefined"))
+      )
+    );
+
+    const created = await createProduct(clean as any);
     return NextResponse.json(created, { status: 201 });
   } catch (err: unknown) {
     console.error("/api/products POST error", err);
@@ -55,9 +61,6 @@ export async function POST(req: Request) {
       typeof err === "object" && err !== null && "message" in err
         ? String((err as { message?: unknown }).message ?? String(err))
         : String(err);
-    return NextResponse.json(
-      { error: msg ?? "Create failed" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: msg ?? "Create failed" }, { status: 400 });
   }
 }

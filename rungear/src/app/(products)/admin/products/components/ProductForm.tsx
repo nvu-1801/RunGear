@@ -28,9 +28,9 @@ import type { ProductInput } from "@/modules/products/model/product-public";
 
 type Product = ProductInput & { id: string };
 
-
 type Props = {
   initial?: ProductInput;
+  productId?: string;
   onClose: () => void;
   onSaved: (values: ProductInput) => void | Promise<void>;
 };
@@ -49,8 +49,14 @@ const validationSchema = Yup.object({
     }),
 });
 
-export default function ProductForm({ initial, onClose, onSaved }: Props) {
-  const isEdit = !!initial;
+export default function ProductForm({
+  initial,
+  productId,
+  onClose,
+  onSaved,
+}: Props) {
+  // const isEdit = !!initial;
+  const isEdit = !!productId;
   const initialValues: ProductInput = {
     name: initial?.name ?? "",
     price: initial?.price ?? 0,
@@ -118,10 +124,13 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
           values.images && values.images.length > 0 ? values.images : undefined,
       };
 
-      const endpoint = isEdit
-        ? `/api/products/${(initial as Product).id}`
-        : "/api/products";
+      // ✅ nếu có productId => PUT, ngược lại POST
+      const endpoint = isEdit ? `/api/products/${productId}` : "/api/products";
       const method = isEdit ? "PUT" : "POST";
+
+      if (isEdit && !productId) {
+        throw new Error("Missing product id"); // guard an toàn
+      }
 
       const r = await fetch(endpoint, {
         method,
@@ -138,7 +147,8 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
         throw new Error(j?.error ?? j?.message ?? "Save failed");
       }
 
-      onSaved(payload);
+      const saved = await r.json();
+      await onSaved(saved); 
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setSubmitError(msg);
@@ -321,11 +331,9 @@ export default function ProductForm({ initial, onClose, onSaved }: Props) {
                       {isAdmin === true && (
                         <AdminImageUploader
                           folder={`products/${
-                            (initial as Product)?.id || crypto.randomUUID()
+                            productId ?? `draft/${crypto.randomUUID()}`
                           }`}
-                          onPreview={(previewUrl) => {
-                            setPreviewSrc(previewUrl);
-                          }}
+                          onPreview={(previewUrl) => setPreviewSrc(previewUrl)}
                           onUploaded={(file) => {
                             formik.setFieldValue("images", file.publicUrl);
                             setPreviewSrc(file.publicUrl);
