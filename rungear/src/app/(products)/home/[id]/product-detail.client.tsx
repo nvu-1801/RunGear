@@ -40,6 +40,9 @@ export default function ProductDetailClient({ product }: { product: Product }) {
   const [isLoggedIn, setIsLoggedIn] = useState(Boolean(user));
   const [showLoginModal, setShowLoginModal] = useState(false);
 
+  const [size, setSize] = useState<string | null>(null);
+  const [sizeError, setSizeError] = useState<string | null>(null);
+
   useEffect(() => {
     setIsLoggedIn(Boolean(user));
   }, [user]);
@@ -49,13 +52,19 @@ export default function ProductDetailClient({ product }: { product: Product }) {
   function changeQty(delta: number) {
     setQty((q) => Math.max(1, q + delta));
   }
-
   async function addToCart() {
     if (!color) {
       setColorError("Vui lòng chọn màu trước khi thêm vào giỏ.");
       return;
     }
+    if (!size) {
+      setSizeError("Vui lòng chọn size trước khi thêm vào giỏ.");
+      return;
+    }
+
     setColorError(null);
+    setSizeError(null);
+
     if (adding) return;
     if (!isLoggedIn) {
       setShowLoginModal(true);
@@ -63,6 +72,7 @@ export default function ProductDetailClient({ product }: { product: Product }) {
     }
 
     setAdding(true);
+
     addItem({
       id: product.id,
       slug: product.slug,
@@ -71,7 +81,7 @@ export default function ProductDetailClient({ product }: { product: Product }) {
       image: images[active]
         ? imagePathToUrl(images[active])
         : productImageUrl(product),
-      variant: color,
+      variant: `${color.toUpperCase()} - Size ${size}`, // ✅ thêm size vào variant
       qty,
     });
 
@@ -300,6 +310,36 @@ export default function ProductDetailClient({ product }: { product: Product }) {
                   +
                 </button>
               </div>
+            </div>
+
+            {/* Size */}
+            <div className="mb-6">
+              <div className="text-sm text-gray-500 font-medium mb-2">
+                Size *
+              </div>
+
+              <div className="flex items-center gap-3">
+                {["S", "M", "L", "XL"].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => {
+                      setSize(s);
+                      setSizeError(null);
+                    }}
+                    className={`px-4 py-2 border rounded-lg text-sm font-semibold transition-all ${
+                      size === s
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600"
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+
+              {sizeError && (
+                <p className="mt-2 text-sm text-red-600">{sizeError}</p>
+              )}
             </div>
 
             {/* Buttons */}
