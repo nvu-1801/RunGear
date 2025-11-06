@@ -8,6 +8,8 @@ import {
 const PLACEHOLDER =
   "https://placehold.co/800/e2e8f0/64748b?text=No+Image";
 
+  export type ChildImage = { id: string; url: string; position: number };
+
 export type Product = {
   id: string;
   slug: string;
@@ -17,6 +19,7 @@ export type Product = {
   status: "draft" | "active" | "hidden";
   description: string | null;
   images?: string[] | string | null;
+  child_images?: ChildImage[]; 
   categories_id?: string | null;
 };
 

@@ -107,7 +107,7 @@ export default function ProductManager() {
     },
     []
   );
-  
+
   // explicit handler to avoid confusion with state setter naming
   const handleSearch = (v: string) => {
     setPage(1);
@@ -206,33 +206,12 @@ export default function ProductManager() {
       {showForm && (
         <ProductForm
           initial={initialForm}
+          productId={editing?.id}
           onClose={() => setShowForm(false)}
-          onSaved={async (val) => {
-            // ví dụ: gọi API upsert
-            const payload = toUpsertPayload(val, { id: editing?.id });
-            try {
-              const url = editing?.id
-                ? `/api/products/${editing.id}`
-                : `/api/products`;
-              const method = editing?.id ? "PUT" : "POST";
-              const r = await fetch(url, {
-                method,
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-              });
-              if (!r.ok) {
-                const msg = await r.text();
-                throw new Error(msg || `HTTP ${r.status}`);
-              }
-              // on success, call outer onSaved to refresh UI
-              onSaved();
-            } catch (error: unknown) {
-              console.error(
-                "Save Error:",
-                error instanceof Error ? error.message : String(error)
-              );
-              throw error;
-            }
+          onSaved={async (_saved) => {
+            setShowForm(false);
+            await fetchList();
+            await fetchGalleryImages();
           }}
         />
       )}
