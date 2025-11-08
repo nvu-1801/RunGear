@@ -7,6 +7,7 @@ import {
 } from "@/lib/tools/products";
 import { createClient } from "@supabase/supabase-js";
 import type { Tool, Part, FunctionResponsePart } from "@google/generative-ai";
+import { getCategoriesForPrompt } from "@/lib/tools/categories"; // ← IMPORT
 
 export const runtime = "nodejs";
 
@@ -24,16 +25,19 @@ function getMessage(err: unknown) {
 export async function POST(req: NextRequest) {
   try {
     // quick env check
-    const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
-    if (!GOOGLE_API_KEY) {
-      console.error("[AI] Missing GOOGLE_API_KEY env");
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+    if (!GEMINI_API_KEY) {
+      console.error("[AI] Missing GEMINI_API_KEY env");
       return NextResponse.json(
-        { error: "Server misconfigured: missing GOOGLE_API_KEY" },
+        { error: "Server misconfigured: missing GEMINI_API_KEY" },
         { status: 500 }
       );
     }
 
     const body: unknown = await req.json();
+    // ← LOG RAW BODY
+    console.log("\n📥 Raw Request Body:");
+    console.log(JSON.stringify(body, null, 2));
 
     // Type guard for request body
     if (!body || typeof body !== "object") {
@@ -97,29 +101,65 @@ export async function POST(req: NextRequest) {
           })
       : [];
 
+    // ← LOAD CATEGORIES ĐỘNG
+    const categoriesText = await getCategoriesForPrompt();
+
     // Khởi tạo model với toolset (function calling)
     const model = genAI.getGenerativeModel({
       model: MODEL,
       // Cast toolset to Tool type - ensure toolset is properly typed in @/lib/gemini
       tools: [toolset as Tool],
       systemInstruction: `
-Bạn là chatbot tư vấn sản phẩm thể thao (áo, quần, giày) cho cửa hàng.
-- Luôn hỏi rõ ngân sách, mục đích dùng, size/giới tính nếu cần.
-- Khi gợi ý, ưu tiên gọi tool "searchProducts" để lấy dữ liệu thật.
-- Trả lời ngắn gọn, tiếng Việt tự nhiên.
-- Hiển thị tối đa 3 sản phẩm: tên, giá, còn hàng/không, link, và 1 lý do ngắn.
-- Nếu người dùng muốn chi tiết 1 sản phẩm, hãy gọi tool "getProductDetails".
-- Không bịa thông tin ngoài dữ liệu tool trả về.
+Bạn là chatbot tư vấn sản phẩm thể thao cho cửa hàng Run Gear.
+
+**DANH MỤC SẢN PHẨM:**
+${categoriesText}
+
+**HƯỚNG DẪN QUAN TRỌNG:**
+1. Khi người dùng hỏi về sản phẩm, LUÔN gọi tool searchProducts
+2. Truyền categoryId bằng SLUG (ví dụ: "ao", "giay", "quan")
+3. KHÔNG dùng tiếng Anh như "shirts", "shoes", "pants"
+4. Ví dụ đúng:
+   - "Tìm áo" → searchProducts({ categoryId: "ao" })
+   - "Giày chạy" → searchProducts({ q: "giày chạy", categoryId: "giay" })
+   - "Quần size M" → searchProducts({ q: "quần", categoryId: "quan" })
+
+5. Luôn hỏi rõ: ngân sách, size, mục đích sử dụng
+6. Hiển thị tối đa 3 sản phẩm: tên, giá, link, lý do gợi ý
+7. Nếu cần chi tiết → Gọi getProductDetails(id)
+8. Trả lời ngắn gọn, tiếng Việt tự nhiên
+
+**CHÚ Ý:**
+- Dùng slug tiếng Việt không dấu: "ao", "giay", "quan"
+- KHÔNG dùng: "shirts", "shoes", "pants"
       `,
     });
 
     // ===== 1) Gọi lần đầu
+    console.log("\n🚀 ===== CALLING GEMINI API =====");
+    console.log("Prompt:", prompt);
+    console.log("History length:", histContents.length);
+
     let res = await model.generateContent({
       contents: [...histContents, { role: "user", parts: [{ text: prompt }] }],
     });
 
     let response = res.response;
     let functionCalls = response.functionCalls();
+
+    console.log("\n📤 ===== GEMINI RESPONSE =====");
+    console.log("Has function calls:", functionCalls ? "YES" : "NO");
+
+    if (functionCalls && functionCalls.length > 0) {
+      console.log("Function calls count:", functionCalls.length);
+      functionCalls.forEach((call, idx) => {
+        console.log(`\n  [${idx + 1}] Function: ${call.name}`);
+        console.log(`      Args:`, JSON.stringify(call.args, null, 2));
+      });
+    } else {
+      console.log("Direct text response (no function call)");
+      console.log("Response preview:", response.text().substring(0, 200));
+    }
 
     // Giữ history cục bộ để tiếp tục đối thoại
     const historyForTurn = [
