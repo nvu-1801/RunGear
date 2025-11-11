@@ -239,7 +239,11 @@ export default async function ProductsGroupLayout({
           </div>
 
           {/* MOBILE MENU - Smooth expand */}
-          <input type="checkbox" id="mobile-menu-toggle" className="peer hidden" />
+          <input
+            type="checkbox"
+            id="mobile-menu-toggle"
+            className="peer hidden"
+          />
           <div
             className="
               md:hidden 

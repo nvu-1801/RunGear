@@ -268,13 +268,19 @@ export default function ProductDetailClient({ product }: { product: Product }) {
   function changeQty(delta: number) {
     setQty((q) => Math.max(1, q + delta));
   }
-
   async function addToCart() {
     if (!color) {
       setColorError("Vui lòng chọn màu trước khi thêm vào giỏ.");
       return;
     }
+    if (!size) {
+      setSizeError("Vui lòng chọn size trước khi thêm vào giỏ.");
+      return;
+    }
+
     setColorError(null);
+    setSizeError(null);
+
     if (adding) return;
     if (!isLoggedIn) {
       setShowLoginModal(true);
@@ -282,6 +288,7 @@ export default function ProductDetailClient({ product }: { product: Product }) {
     }
 
     setAdding(true);
+
     addItem({
       id: product.id,
       slug: product.slug,
@@ -290,7 +297,7 @@ export default function ProductDetailClient({ product }: { product: Product }) {
       image: images[active]
         ? imagePathToUrl(images[active])
         : productImageUrl(product),
-      variant: color,
+      variant: `${color.toUpperCase()} - Size ${size}`, // ✅ thêm size vào variant
       qty,
     });
 

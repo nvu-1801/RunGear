@@ -1,23 +1,24 @@
+// =============================
+// 1) app/(account)/orders/page.client.tsx
+// =============================
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { supabaseBrowser } from "@/libs/supabase/supabase-client";
-import { formatPriceVND } from "@/shared/price";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { formatPriceVND } from "@/shared/price";
 
 /* ======================== types & helpers ======================== */
 type OrderStatus = "PENDING" | "PROCESSING" | "PAID" | "CANCELLED" | "FAILED";
 
-type Order = {
+type OrderListItem = {
   id: string;
-  order_code: number; // bigint
+  order_code: string; // keep string to avoid BigInt/number issues
   total: number;
   status: OrderStatus;
   created_at: string;
   amount: number;
   payment_link_id: string | null;
   paid_at: string | null;
-  shipping_address: unknown;
 };
 
 type ProductLite = {
@@ -39,7 +40,7 @@ type OrderItem = {
 
 type OrderDetail = {
   id: string;
-  order_code: number | string;
+  order_code: string;
   created_at: string;
   status: OrderStatus | string;
   total: number;
@@ -61,11 +62,11 @@ const STATUS_CONFIG: Record<
   OrderStatus,
   { label: string; color: string; bg: string; icon: string; gradient: string }
 > = {
-  PENDING:   { label: "Chờ xử lý",   color: "text-yellow-700", bg: "bg-yellow-50 border-yellow-200", gradient: "from-yellow-400 to-orange-400", icon: "⏳" },
-  PROCESSING:{ label: "Đang xử lý",  color: "text-blue-700",   bg: "bg-blue-50 border-blue-200",     gradient: "from-blue-400 to-cyan-400",   icon: "🔄" },
-  PAID:      { label: "Đã thanh toán", color: "text-green-700", bg: "bg-green-50 border-green-200",   gradient: "from-green-400 to-emerald-400", icon: "✅" },
-  CANCELLED: { label: "Đã hủy",      color: "text-gray-600",   bg: "bg-gray-50 border-gray-200",     gradient: "from-gray-400 to-slate-400",  icon: "❌" },
-  FAILED:    { label: "Thất bại",    color: "text-red-700",    bg: "bg-red-50 border-red-200",        gradient: "from-red-400 to-rose-400",    icon: "⚠️" },
+  PENDING:   { label: "Chờ xử lý",     color: "text-yellow-700", bg: "bg-yellow-50 border-yellow-200", gradient: "from-yellow-400 to-orange-400", icon: "⏳" },
+  PROCESSING:{ label: "Đang xử lý",    color: "text-blue-700",   bg: "bg-blue-50 border-blue-200",     gradient: "from-blue-400 to-cyan-400",   icon: "🔄" },
+  PAID:      { label: "Đã thanh toán",  color: "text-green-700", bg: "bg-green-50 border-green-200",   gradient: "from-green-400 to-emerald-400", icon: "✅" },
+  CANCELLED: { label: "Đã hủy",        color: "text-gray-600",   bg: "bg-gray-50 border-gray-200",     gradient: "from-gray-400 to-slate-400",  icon: "❌" },
+  FAILED:    { label: "Thất bại",      color: "text-red-700",    bg: "bg-red-50 border-red-200",        gradient: "from-red-400 to-rose-400",    icon: "⚠️" },
 };
 
 function StatusBadge({ v }: { v: string }) {
@@ -78,7 +79,7 @@ function StatusBadge({ v }: { v: string }) {
   );
 }
 
-function imagesOf(p: ProductLite | null) {
+function firstImage(p: ProductLite | null) {
   if (!p) return null;
   if (Array.isArray(p.images)) return p.images[0] ?? null;
   return p.images ?? null;
@@ -86,10 +87,9 @@ function imagesOf(p: ProductLite | null) {
 
 /* ======================== component ======================== */
 export default function OrdersPage() {
-  const sb = supabaseBrowser();
-  const [orders, setOrders] = useState<Order[]>([]);
+  // NOTE: offload data fetching to API routes to reduce client bundle & move logic server-side.
+  const [orders, setOrders] = useState<OrderListItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // modal detail state
@@ -97,102 +97,53 @@ export default function OrdersPage() {
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  /* ----------- load list ----------- */
+  const dateFmt = useMemo(
+    () => ({ day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) as const,
+    []
+  );
+
   useEffect(() => {
+    const ctrl = new AbortController();
     (async () => {
       try {
-        const { data } = await sb.auth.getSession();
-        const uid = data?.session?.user?.id ?? null;
-        setUserId(uid);
-
-        if (!uid) {
-          setLoading(false);
-          return;
-        }
-
-        const { data: ordersData, error: ordersError } = await sb
-          .from("orders")
-          .select("*")
-          .eq("user_id", uid)
-          .order("created_at", { ascending: false });
-
-        if (ordersError) throw ordersError;
-        setOrders((ordersData as Order[]) ?? []);
-      } catch (e) {
-        console.error("Load orders error:", e);
-        setError(e instanceof Error ? e.message : "Không thể tải đơn hàng");
+        setLoading(true);
+        setError(null);
+        const res = await fetch(`/api/orders?limit=50`, { signal: ctrl.signal, credentials: "include" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message || "Failed to load");
+        setOrders((json.data as OrderListItem[]) ?? []);
+      } catch (e: any) {
+        if (e?.name !== "AbortError") setError(e?.message ?? "Không thể tải đơn hàng");
       } finally {
         setLoading(false);
       }
     })();
-  }, [sb]);
+    return () => ctrl.abort();
+  }, []);
 
-  /* ----------- load detail when openId changes ----------- */
   useEffect(() => {
-    if (!openId || !userId) return;
+    if (!openId) return;
+    const ctrl = new AbortController();
+    setDetail(null);
+    setDetailLoading(true);
     (async () => {
-      setDetail(null);
-      setDetailLoading(true);
       try {
-        const { data, error } = await sb
-          .from("orders")
-          .select(`
-            id,
-            order_code,
-            created_at,
-            status,
-            total,
-            amount,
-            discount_amount,
-            shipping_address,
-            order_items (
-              id,
-              qty,
-              price_at_time,
-              product:products ( id, name, slug, price, images, stock, status )
-            )
-          `)
-          .eq("id", openId)
-          .eq("user_id", userId) // bảo vệ truy cập
-          .single();
-
-        if (error) throw error;
-
-        const normalized: OrderDetail = {
-          id: data.id,
-          order_code: data.order_code,
-          created_at: data.created_at,
-          status: (data.status ?? "PENDING").toString(),
-          total: Number(data.total),
-          amount: Number(data.amount),
-          discount_amount: Number(data.discount_amount ?? 0),
-          shipping_address: data.shipping_address ?? null,
-          order_items: (data.order_items ?? []).map((it: any) => {
-            const raw = it.product ?? null;
-            const product: ProductLite | null = !raw
-              ? null
-              : Array.isArray(raw)
-              ? (raw[0] ?? null)
-              : raw;
-            return {
-              id: it.id,
-              qty: Number(it.qty),
-              price_at_time: Number(it.price_at_time ?? 0),
-              product,
-            };
-          }),
-        };
-
-        setDetail(normalized);
+        const res = await fetch(`/api/orders?id=${openId}`, { signal: ctrl.signal, credentials: "include" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message || "Failed to load detail");
+        setDetail(json.data as OrderDetail);
       } catch (e) {
-        console.error("Load order detail error:", e);
+        console.error(e);
       } finally {
         setDetailLoading(false);
       }
     })();
-  }, [openId, userId, sb]);
+    return () => ctrl.abort();
+  }, [openId]);
 
-  /* ======================== screens (loading / login / error) ======================== */
+  /* ======================== screens (loading / error) ======================== */
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
@@ -207,27 +158,13 @@ export default function OrdersPage() {
     );
   }
 
-  if (!userId) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center">
-          <h2 className="text-2xl font-bold text-gray-800 mb-3">Bạn cần đăng nhập</h2>
-          <p className="text-sm text-gray-600 mb-8">Để xem trạng thái đơn hàng.</p>
-          <Link href="/auth/signin" className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold">
-            Đăng nhập ngay
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center">
           <h2 className="text-2xl font-bold text-gray-800 mb-3">Có lỗi xảy ra</h2>
           <p className="text-sm text-gray-600 mb-6">{error}</p>
-          <button onClick={() => window.location.reload()} className="px-6 py-3 rounded-xl bg-red-600 text-white font-semibold">Thử lại</button>
+          <button onClick={() => location.reload()} className="px-6 py-3 rounded-xl bg-red-600 text-white font-semibold">Thử lại</button>
         </div>
       </div>
     );
@@ -276,7 +213,7 @@ export default function OrdersPage() {
                             Đơn hàng #{order.order_code}
                           </h3>
                           <div className="flex items-center gap-2 text-sm text-gray-600">
-                            {new Date(order.created_at).toLocaleString("vi-VN", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" })}
+                            {new Date(order.created_at).toLocaleString("vi-VN", dateFmt)}
                           </div>
                         </div>
                       </div>
@@ -295,7 +232,7 @@ export default function OrdersPage() {
                         <div className="flex items-center justify-between p-4 rounded-xl bg-green-50 border border-green-100">
                           <span className="text-sm text-gray-700 font-medium">Thanh toán lúc:</span>
                           <span className="text-sm text-green-700 font-semibold">
-                            {new Date(order.paid_at).toLocaleString("vi-VN", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" })}
+                            {new Date(order.paid_at).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                           </span>
                         </div>
                       )}
@@ -326,7 +263,7 @@ export default function OrdersPage() {
         )}
       </div>
 
-      {/* Modal detail (read-only giống dashboard) */}
+      {/* Modal detail */}
       {openId && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-3 backdrop-blur-sm">
           <div className="w-full max-w-4xl overflow-hidden rounded-2xl border bg-white shadow-2xl">
@@ -410,12 +347,14 @@ export default function OrdersPage() {
                             <tr key={it.id} className="border-t">
                               <td className="p-3">
                                 <div className="flex items-center gap-3">
-                                  {imagesOf(it.product) ? (
+                                  {firstImage(it.product) ? (
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img
-                                      src={imagesOf(it.product) as string}
+                                      src={firstImage(it.product) as string}
                                       alt={it.product?.name ?? ""}
-                                      className="size-12 rounded-xl object-cover ring-1 ring-slate-200"
+                                      className="size-12 rounded-xl object-cover ring-1 ring-slate-2 00"
+                                      loading="lazy"
+                                      decoding="async"
                                     />
                                   ) : (
                                     <div className="size-12 rounded-xl bg-slate-100 ring-1 ring-slate-200" />
