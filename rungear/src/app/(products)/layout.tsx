@@ -74,7 +74,7 @@ export default async function ProductsGroupLayout({
                   {/* Dropdown content - show on hover */}
                   <div
                     className="
-                      absolute left-1/2 -translate-x-1/2 top-full mt-3
+                      absolute left-1/2 -translate-x-1/2 top-full mt-1
                       hidden group-hover:flex
                       flex-col bg-white border border-gray-200 rounded-xl shadow-xl w-60 py-2 z-50
                       animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200
@@ -178,7 +178,7 @@ export default async function ProductsGroupLayout({
 
                   <div
                     className="
-                      absolute left-1/2 -translate-x-1/2 top-full mt-3
+                      absolute left-1/2 -translate-x-1/2 top-full mt-1
                       hidden group-hover:flex
                       flex-col bg-white border border-gray-200 rounded-xl shadow-xl w-60 py-2 z-50
                       animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200
