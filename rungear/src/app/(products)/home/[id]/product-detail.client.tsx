@@ -14,6 +14,213 @@ import { formatPriceVND } from "@/shared/price";
 import { useCart } from "@/components/cart/cart-store";
 import { supabaseBrowser } from "@/libs/supabase/supabase-client";
 import { getAllImageUrls, getImageUrl } from "@/modules/products/lib/image-url";
+import {
+  getCategoryRows,
+  type CatKey,
+} from "@/modules/categories/category.service";
+import SupabaseClient from "@supabase/supabase-js/dist/module/SupabaseClient";
+
+function useProductCatSlug(sb: SupabaseClient, product: Product) {
+  const [cat, setCat] = useState<CatKey | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const rows = await getCategoryRows(sb);
+        const map = new Map(rows.map((r) => [r.id, r.slug]));
+        const slug = map.get((product as any).categories_id) ?? null;
+        if (alive) setCat(slug ?? null);
+      } catch {
+        if (alive) setCat(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [sb, product]);
+
+  return cat;
+}
+
+function SizeChart({ cat }: { cat: CatKey }) {
+  if (cat === "ao") {
+    const rows = [
+      {
+        size: "S",
+        chest: "86–90",
+        shoulder: "38–40",
+        length: "64",
+        weight: "45–55",
+      },
+      {
+        size: "M",
+        chest: "90–94",
+        shoulder: "40–42",
+        length: "66",
+        weight: "55–62",
+      },
+      {
+        size: "L",
+        chest: "94–100",
+        shoulder: "42–44",
+        length: "68",
+        weight: "62–70",
+      },
+      {
+        size: "XL",
+        chest: "100–108",
+        shoulder: "44–46",
+        length: "70",
+        weight: "70–80",
+      },
+    ];
+    return (
+      <div className="mt-6 border rounded-xl p-4 bg-gray-50">
+        <h3 className="text-base font-semibold text-gray-700 mb-3">
+          Bảng kích cỡ áo
+        </h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-gray-700 border-collapse">
+            <thead>
+              <tr className="bg-gray-100 text-gray-800">
+                <th className="border px-3 py-2">Size</th>
+                <th className="border px-3 py-2">Ngực (cm)</th>
+                <th className="border px-3 py-2">Vai (cm)</th>
+                <th className="border px-3 py-2">Dài áo (cm)</th>
+                <th className="border px-3 py-2">Cân nặng (kg)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.size}>
+                  <td className="border px-3 py-2 font-semibold">{r.size}</td>
+                  <td className="border px-3 py-2">{r.chest}</td>
+                  <td className="border px-3 py-2">{r.shoulder}</td>
+                  <td className="border px-3 py-2">{r.length}</td>
+                  <td className="border px-3 py-2">{r.weight}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-gray-500 mt-3 italic">
+          * Tham khảo, lệch ±1–2 cm tùy sản phẩm.
+        </p>
+      </div>
+    );
+  }
+
+  if (cat === "quan") {
+    const rows = [
+      {
+        size: "S",
+        waist: "66–72",
+        hip: "88–94",
+        outseam: "96",
+        weight: "45–55",
+      },
+      {
+        size: "M",
+        waist: "72–78",
+        hip: "94–100",
+        outseam: "98",
+        weight: "55–62",
+      },
+      {
+        size: "L",
+        waist: "78–86",
+        hip: "100–108",
+        outseam: "100",
+        weight: "62–70",
+      },
+      {
+        size: "XL",
+        waist: "86–94",
+        hip: "108–116",
+        outseam: "102",
+        weight: "70–80",
+      },
+    ];
+    return (
+      <div className="mt-6 border rounded-xl p-4 bg-gray-50">
+        <h3 className="text-base font-semibold text-gray-700 mb-3">
+          Bảng kích cỡ quần
+        </h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-gray-700 border-collapse">
+            <thead>
+              <tr className="bg-gray-100 text-gray-800">
+                <th className="border px-3 py-2">Size</th>
+                <th className="border px-3 py-2">Eo (cm)</th>
+                <th className="border px-3 py-2">Mông (cm)</th>
+                <th className="border px-3 py-2">Dài quần (cm)</th>
+                <th className="border px-3 py-2">Cân nặng (kg)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.size}>
+                  <td className="border px-3 py-2 font-semibold">{r.size}</td>
+                  <td className="border px-3 py-2">{r.waist}</td>
+                  <td className="border px-3 py-2">{r.hip}</td>
+                  <td className="border px-3 py-2">{r.outseam}</td>
+                  <td className="border px-3 py-2">{r.weight}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-gray-500 mt-3 italic">
+          * Tham khảo, lệch ±1–2 cm tùy sản phẩm.
+        </p>
+      </div>
+    );
+  }
+
+  // giày
+  const rows = [
+    { eu: 38, us: 6, jp: 24.0, foot: 24.0 },
+    { eu: 39, us: 7, jp: 24.5, foot: 24.5 },
+    { eu: 40, us: 7.5, jp: 25.0, foot: 25.0 },
+    { eu: 41, us: 8, jp: 25.5, foot: 25.5 },
+    { eu: 42, us: 9, jp: 26.0, foot: 26.0 },
+    { eu: 43, us: 10, jp: 27.0, foot: 27.0 },
+  ];
+  return (
+    <div className="mt-6 border rounded-xl p-4 bg-gray-50">
+      <h3 className="text-base font-semibold text-gray-700 mb-3">
+        Bảng kích cỡ giày
+      </h3>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm text-gray-700 border-collapse">
+          <thead>
+            <tr className="bg-gray-100 text-gray-800">
+              <th className="border px-3 py-2">EU</th>
+              <th className="border px-3 py-2">US</th>
+              <th className="border px-3 py-2">JP (cm)</th>
+              <th className="border px-3 py-2">Dài chân (cm)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.eu}>
+                <td className="border px-3 py-2 font-semibold">{r.eu}</td>
+                <td className="border px-3 py-2">{r.us}</td>
+                <td className="border px-3 py-2">{r.jp}</td>
+                <td className="border px-3 py-2">{r.foot}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-gray-500 mt-3 italic">
+        * Đo chiều dài bàn chân (gót → ngón dài nhất), chọn size gần nhất; có
+        thể lệch ±0.5 cm.
+      </p>
+    </div>
+  );
+}
 
 export default function ProductDetailClient({ product }: { product: Product }) {
   const router = useRouter();
@@ -39,6 +246,18 @@ export default function ProductDetailClient({ product }: { product: Product }) {
   const { user, isAdmin } = useAuth();
   const [isLoggedIn, setIsLoggedIn] = useState(Boolean(user));
   const [showLoginModal, setShowLoginModal] = useState(false);
+
+  const [size, setSize] = useState<string | null>(null);
+  const [sizeError, setSizeError] = useState<string | null>(null);
+
+  const cat = useProductCatSlug(sb, product); // "ao" | "quan" | "giay" | null
+
+  // Gợi ý size options theo cate (không bắt buộc)
+  const sizeOptions = useMemo(() => {
+    if (cat === "giay") return ["38", "39", "40", "41", "42", "43"];
+    // áo/quần dùng chữ
+    return ["S", "M", "L", "XL"];
+  }, [cat]);
 
   useEffect(() => {
     setIsLoggedIn(Boolean(user));
@@ -302,8 +521,43 @@ export default function ProductDetailClient({ product }: { product: Product }) {
               </div>
             </div>
 
+            {/* Size */}
+            <div className="mb-6">
+              <div className="text-sm text-gray-500 font-medium mb-2">
+                Size *
+              </div>
+
+              <div className="flex items-center gap-3">
+                {sizeOptions.map((s) => (
+                  <button
+                    type="button"
+                    key={s}
+                    onClick={() => {
+                      setSize(s);
+                      setSizeError(null);
+                    }}
+                    className={`px-4 py-2 border rounded-lg text-sm font-semibold transition-all ${
+                      size === s
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600"
+                    }`}
+                    aria-label={`Chọn size ${s}`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+
+              {sizeError && (
+                <p className="mt-2 text-sm text-red-600">{sizeError}</p>
+              )}
+            </div>
+
+            {/* ⬇️ Chèn SizeChart tương ứng cate (khi đã xác định được) */}
+            {cat && <SizeChart cat={cat} />}
+
             {/* Buttons */}
-            <div className="flex items-center gap-4 mb-8">
+            <div className="flex items-center gap-4 mt-4 mb-8">
               <button
                 onClick={addToCart}
                 disabled={adding}
