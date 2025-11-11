@@ -1,33 +1,69 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { supabaseBrowser } from "@/libs/supabase/supabase-client";
 
+/* ================= helpers ================= */
 type Stats = { sold_this_month: number; total_stock: number; skus_in_stock: number };
 
-// ---------------- helpers ----------------
 function getMessage(err: unknown) {
   if (typeof err === "string") return err;
   if (typeof err === "object" && err !== null && "message" in err) {
-    try { return String((err as { message?: unknown }).message ?? String(err)); } catch { return String(err); }
+    try {
+      return String((err as { message?: unknown }).message ?? String(err));
+    } catch {
+      return String(err);
+    }
   }
   return String(err);
 }
 
-// ---------------- list types ----------------
+async function fetchJSON<T>(
+  url: string,
+  opts: RequestInit & { timeoutMs?: number } = {}
+): Promise<T> {
+  const { timeoutMs = 10000, ...rest } = opts;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(url, {
+      credentials: "include",
+      signal: ctrl.signal,
+      ...rest,
+    });
+    const json = await res
+      .json()
+      .catch(() => ({ success: res.ok, data: null, message: "" }));
+
+    if (!res.ok || json?.success === false) {
+      const msg = json?.message || `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+    return (json?.data ?? json) as T;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/* ================= list types ================= */
 type OrderRow = {
   id: string;
   order_code: string;
   created_at: string;
   total: string | number;
   status: string | null;
-  shipping_address: null | { full_name?: string | null; name?: string | null; recipient?: string | null; phone?: string | null };
+  shipping_address: null | {
+    full_name?: string | null;
+    name?: string | null;
+    recipient?: string | null;
+    phone?: string | null;
+  };
 };
 
 type OrderVM = {
   id: string;
   order_code: string;
   created_at: string;
-  total: string | number;
+  total: number;
   status: string;
   customer_name: string | null;
 };
@@ -37,19 +73,26 @@ function toVM(r: OrderRow): OrderVM {
   const name = (sa.full_name ?? sa.name ?? sa.recipient ?? null) ?? null;
   return {
     id: r.id,
-    order_code: r.order_code,
+    order_code: String(r.order_code),
     created_at: r.created_at,
-    total: r.total,
+    total: Number(r.total ?? 0),
     status: (r.status ?? "PENDING").toUpperCase(),
     customer_name: name,
   };
 }
 
 function isOrder(v: unknown): v is OrderVM {
-  return typeof v === "object" && v !== null && "id" in v && "created_at" in v && "total" in v && "order_code" in v;
+  return (
+    typeof v === "object" &&
+    v !== null &&
+    "id" in v &&
+    "created_at" in v &&
+    "total" in v &&
+    "order_code" in v
+  );
 }
 
-// --- helpers nhỏ ---
+/* ================= small UI helpers ================= */
 function Money({ v }: { v: number }) {
   return <span>{Number(v || 0).toLocaleString("vi-VN")} ₫</span>;
 }
@@ -65,7 +108,9 @@ function StatusBadge({ value }: { value: string }) {
       ? "bg-blue-50 text-blue-700 ring-1 ring-blue-200"
       : "bg-amber-50 text-amber-700 ring-1 ring-amber-200";
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold ${cls}`}>
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold ${cls}`}
+    >
       <span className="size-1.5 rounded-full bg-current/40" />
       {v}
     </span>
@@ -82,14 +127,18 @@ const STATUS_OPTIONS = [
 
 function ChevronDownIcon() {
   return (
-    <svg className="size-4 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+    <svg
+      className="size-4 text-gray-500"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+    >
       <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
     </svg>
   );
 }
 
-
-// ---------------- detail types ----------------
+/* ================= detail types ================= */
 type ProductLite = {
   id: string;
   name: string;
@@ -127,7 +176,7 @@ type OrderDetail = {
   order_items: OrderItem[];
 };
 
-// ---------------- component ----------------
+/* ================= component ================= */
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -141,91 +190,89 @@ export default function DashboardPage() {
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  // stats
+  const dateFmt = useMemo(
+    () =>
+      ({
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }) as const,
+    []
+  );
+
+  /* ---------- stats via API (ổn định session/RLS) ---------- */
   useEffect(() => {
-    (async () => {
-      try {
-        const sb = supabaseBrowser();
-        const { data, error } = await sb.rpc("get_dashboard_stats");
-        if (error) throw error;
-        setStats(data?.[0] ?? { sold_this_month: 0, total_stock: 0, skus_in_stock: 0 });
-      } catch (e: unknown) {
+    let mounted = true;
+    setLoading(true);
+    setErr(null);
+
+    fetchJSON<Stats>("/api/dashboard", { timeoutMs: 8000 })
+      .then((data) => {
+        if (!mounted) return;
+        setStats(data ?? { sold_this_month: 0, total_stock: 0, skus_in_stock: 0 });
+      })
+      .catch((e) => {
+        if (!mounted) return;
         setErr(getMessage(e));
-      } finally {
-        setLoading(false);
-      }
-    })();
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  // recent orders (lightweight)
+  /* ---------- recent orders via API ---------- */
   useEffect(() => {
-    (async () => {
-      setOrdersLoading(true);
-      try {
-        const sb = supabaseBrowser();
-        const { data, error } = await sb
-          .from("orders")
-          .select("id, order_code, created_at, total, status, shipping_address")
-          .order("created_at", { ascending: false })
-          .limit(10);
-        if (error) throw error;
-        setOrders((data ?? []).map(toVM));
-      } catch (e: unknown) {
+    let mounted = true;
+    setOrdersLoading(true);
+
+    fetchJSON<OrderRow[]>("/api/orders?limit=10", { timeoutMs: 8000 })
+      .then((rows) => {
+        if (!mounted) return;
+        setOrders((rows ?? []).map(toVM));
+      })
+      .catch((e) => {
+        if (!mounted) return;
         console.error(getMessage(e));
-      } finally {
-        setOrdersLoading(false);
-      }
-    })();
+        setOrders([]);
+      })
+      .finally(() => {
+        if (mounted) setOrdersLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  // fetch detail when openId changes
+  /* ---------- detail on demand via API ---------- */
   useEffect(() => {
     if (!openId) return;
-    (async () => {
-      setDetail(null);
-      setDetailLoading(true);
-      try {
-        const sb = supabaseBrowser();
-        const { data, error } = await sb
-          .from("orders")
-          .select(`
-            id,
-            order_code,
-            created_at,
-            status,
-            total,
-            amount,
-            discount_amount,
-            shipping_address,
-            order_items (
-              id,
-              qty,
-              price_at_time,
-              product:products (
-                id, name, slug, price, images, stock, status
-              )
-            )
-          `)
-          .eq("id", openId)
-          .single();
-        if (error) throw error;
+    let mounted = true;
+
+    setDetail(null);
+    setDetailLoading(true);
+
+    fetchJSON<any>(`/api/orders?id=${openId}`, { timeoutMs: 8000 })
+      .then((d) => {
+        if (!mounted) return;
         const normalized: OrderDetail = {
-          id: data.id,
-          order_code: data.order_code,
-          created_at: data.created_at,
-          status: (data.status ?? "PENDING").toUpperCase(),
-          total: Number(data.total),
-          amount: Number(data.amount),
-          discount_amount: Number(data.discount_amount ?? 0),
-          shipping_address: data.shipping_address ?? null,
-          order_items: (data.order_items ?? []).map((it: any) => {
-            // supabase may return the related product as an array (e.g. product: [ ... ]) or as an object; normalize to a single ProductLite | null
-            const rawProduct = (it.product ?? null) as any;
-            const product: ProductLite | null = !rawProduct
-              ? null
-              : Array.isArray(rawProduct)
-              ? (rawProduct[0] ?? null)
-              : rawProduct;
+          id: d.id,
+          order_code: String(d.order_code),
+          created_at: d.created_at,
+          status: String(d.status ?? "PENDING").toUpperCase(),
+          total: Number(d.total),
+          amount: Number(d.amount),
+          discount_amount: Number(d.discount_amount ?? 0),
+          shipping_address: d.shipping_address ?? null,
+          order_items: (d.order_items ?? []).map((it: any) => {
+            const raw = it.product ?? null;
+            const product: ProductLite | null = !raw ? null : Array.isArray(raw) ? raw[0] ?? null : raw;
             return {
               id: it.id,
               qty: Number(it.qty),
@@ -235,12 +282,17 @@ export default function DashboardPage() {
           }),
         };
         setDetail(normalized);
-      } catch (e: unknown) {
+      })
+      .catch((e) => {
         console.error("Load order detail error:", getMessage(e));
-      } finally {
-        setDetailLoading(false);
-      }
-    })();
+      })
+      .finally(() => {
+        if (mounted) setDetailLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
   }, [openId]);
 
   return (
@@ -253,6 +305,11 @@ export default function DashboardPage() {
       </h1>
 
       {loading && <div className="animate-pulse text-blue-600">Đang tải thống kê…</div>}
+      {/* {err && (
+        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          {err}
+        </div>
+      )} */}
 
       {stats && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
@@ -301,9 +358,13 @@ export default function DashboardPage() {
                           {o.order_code}
                         </button>
                       </td>
-                      <td className="p-3">{o.customer_name || <span className="text-gray-400">Khách lẻ</span>}</td>
-                      <td className="p-3">{new Date(o.created_at).toLocaleString("vi-VN")}</td>
-                      <td className="p-3 font-semibold text-blue-700">{Number(o.total).toLocaleString("vi-VN")} ₫</td>
+                      <td className="p-3">
+                        {o.customer_name || <span className="text-gray-400">Khách lẻ</span>}
+                      </td>
+                      <td className="p-3">{new Date(o.created_at).toLocaleString("vi-VN", dateFmt as any)}</td>
+                      <td className="p-3 font-semibold text-blue-700">
+                        {Number(o.total).toLocaleString("vi-VN")} ₫
+                      </td>
                       <td className="p-3">
                         <span
                           className={`px-2 py-1 rounded-lg border text-xs font-semibold ${
@@ -338,16 +399,23 @@ export default function DashboardPage() {
       {openId && (
         <OrderDetailModal
           open
-          onClose={() => { setOpenId(null); setDetail(null); }}
+          onClose={() => {
+            setOpenId(null);
+            setDetail(null);
+          }}
           loading={detailLoading}
           detail={detail}
+          onStatusUpdated={(s) => {
+            // sync lại badge trong bảng nếu đang hiển thị đơn đó
+            setOrders((prev) => prev.map((x) => (x.id === openId ? { ...x, status: s } : x)));
+          }}
         />
       )}
     </div>
   );
 }
 
-// ---------------- small icons ----------------
+/* ================= icons ================= */
 function CheckIcon() {
   return (
     <svg className="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -380,8 +448,16 @@ function ListIcon() {
   );
 }
 
-// ---------------- presentational ----------------
-function Card({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) {
+/* ================= presentational ================= */
+function Card({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: number;
+  icon: React.ReactNode;
+}) {
   return (
     <div className="rounded-2xl border bg-white p-6 shadow flex flex-col items-center">
       <div>{icon}</div>
@@ -391,16 +467,19 @@ function Card({ label, value, icon }: { label: string; value: number; icon: Reac
   );
 }
 
+/* ================= modal ================= */
 function OrderDetailModal({
   open,
   onClose,
   loading,
   detail,
+  onStatusUpdated,
 }: {
   open: boolean;
   onClose: () => void;
   loading: boolean;
   detail: OrderDetail | null;
+  onStatusUpdated?: (next: string) => void;
 }) {
   if (!open) return null;
 
@@ -414,41 +493,43 @@ function OrderDetailModal({
     setSaving(true);
     setErrMsg(null);
     const prev = detail.status;
-    const prevPaidAt = (detail as any).paid_at ?? null;
 
     try {
-      (detail as any).status = next; // optimistic
-      const sb = supabaseBrowser();
-      const patch: Record<string, any> = { status: next };
-      if (next === "PAID") patch.paid_at = new Date().toISOString();
-      else if (prev === "PAID") patch.paid_at = null;
+      // optimistic
+      (detail as any).status = next;
 
-      const { error } = await sb.from("orders").update(patch).eq("id", detail.id);
-      if (error) {
-        (detail as any).status = prev;
-        (detail as any).paid_at = prevPaidAt;
-        throw error;
-      }
-    } catch (e: any) {
-      setErrMsg(e?.message ?? "Không thể cập nhật trạng thái");
+      await fetchJSON(`/api/orders`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: detail.id, status: next }),
+        timeoutMs: 8000,
+      });
+
+      onStatusUpdated?.(next);
+    } catch (e) {
+      (detail as any).status = prev;
+      setErrMsg(getMessage(e));
     } finally {
       setSaving(false);
     }
   }
 
   const totalLine = (i: OrderItem) => i.qty * (i.price_at_time ?? 0);
-  const imagesOf = (p: ProductLite | null) => {
-    if (!p) return null;
-    if (Array.isArray(p.images)) return p.images[0] ?? null;
-    return p.images ?? null;
-  };
+  const imagesOf = (p: ProductLite | null) =>
+    (Array.isArray(p?.images) ? p?.images?.[0] : p?.images) ?? null;
 
-  // tính tạm subtotal từ items (nếu muốn hiển thị)
   const computedSubtotal =
     detail?.order_items?.reduce((s, it) => s + totalLine(it), 0) ?? 0;
 
-  // dropdown đẹp hơn (custom select)
-  function StatusSelect({ value, onChange, disabled }: { value: string; onChange: (v: Allowed) => void; disabled?: boolean; }) {
+  function StatusSelect({
+    value,
+    onChange,
+    disabled,
+  }: {
+    value: string;
+    onChange: (v: Allowed) => void;
+    disabled?: boolean;
+  }) {
     return (
       <div className="relative">
         <select
@@ -478,9 +559,7 @@ function OrderDetailModal({
           <div className="flex flex-col">
             <div className="flex items-center gap-3">
               <h3 className="text-lg font-semibold text-slate-800">
-                Đơn hàng
-                {" "}
-                <span className="font-mono text-blue-700">{detail?.order_code ?? ""}</span>
+                Đơn hàng <span className="font-mono text-blue-700">{detail?.order_code ?? ""}</span>
               </h3>
               {detail && <StatusBadge value={detail.status} />}
             </div>
@@ -533,18 +612,16 @@ function OrderDetailModal({
                       detail.shipping_address?.address_line,
                       detail.shipping_address?.district,
                       detail.shipping_address?.province,
-                    ].filter(Boolean).join(", ")}
+                    ]
+                      .filter(Boolean)
+                      .join(", ")}
                   </p>
                 </div>
 
                 <div className="rounded-xl border bg-white p-4 shadow-sm">
                   <p className="text-xs uppercase tracking-wide text-slate-500">Trạng thái</p>
                   <div className="mt-1 flex items-center gap-2">
-                    <StatusSelect
-                      value={detail.status}
-                      onChange={updateStatus}
-                      disabled={saving}
-                    />
+                    <StatusSelect value={detail.status} onChange={updateStatus} disabled={saving} />
                     {saving && <span className="text-xs text-blue-600">Đang lưu…</span>}
                   </div>
 
@@ -588,6 +665,8 @@ function OrderDetailModal({
                                   src={imagesOf(it.product) as string}
                                   alt={it.product?.name ?? ""}
                                   className="size-12 rounded-xl object-cover ring-1 ring-slate-200"
+                                  loading="lazy"
+                                  decoding="async"
                                 />
                               ) : (
                                 <div className="size-12 rounded-xl bg-slate-100 ring-1 ring-slate-200" />
@@ -598,9 +677,13 @@ function OrderDetailModal({
                               </div>
                             </div>
                           </td>
-                          <td className="p-3 text-right"><Money v={it.price_at_time} /></td>
+                          <td className="p-3 text-right">
+                            <Money v={it.price_at_time} />
+                          </td>
                           <td className="p-3 text-right">{it.qty}</td>
-                          <td className="p-3 text-right"><Money v={totalLine(it)} /></td>
+                          <td className="p-3 text-right">
+                            <Money v={it.qty * (it.price_at_time ?? 0)} />
+                          </td>
                         </tr>
                       ))}
                     </tbody>

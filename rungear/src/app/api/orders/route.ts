@@ -1,249 +1,129 @@
+
+
+// =============================
+// 2) app/api/orders/route.ts
+// =============================
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { supabaseServer } from "@/libs/supabase/supabase-server";
 
+// ---- Schemas ----
+const ShippingSchema = z.object({
+  full_name: z.string().min(1),
+  phone: z.string().min(6),
+  email: z.string().email(),
+  address_line: z.string().min(3),
+  province: z.string().min(1),
+  district: z.string().min(1),
+  ward: z.string().optional(),
+  note: z.string().optional(),
+});
+
+const ItemSchema = z.object({
+  id: z.string().uuid(), // product_id
+  qty: z.number().int().positive().max(1000),
+});
+
+const CreateOrderSchema = z.object({
+  items: z.array(ItemSchema).min(1),
+  discount_code_id: z.string().uuid().optional().nullable(),
+  shipping_address: ShippingSchema,
+  shipping_fee: z.number().int().min(0).default(0),
+});
+
+// ---- Helpers ----
+function json(res: any, status = 200) {
+  return NextResponse.json(res, { status });
+}
+
+function genOrderCode() {
+  const d = new Date();
+  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  const rand = Math.random().toString(36).slice(2, 7).toUpperCase();
+  return `ORD-${ymd}-${rand}`;
+}
+
+// ---- GET ----
+// ---- GET ----
 export async function GET(req: NextRequest) {
+  try {
+    const supabase = await supabaseServer();
+    const { data: userRes, error: userError } = await supabase.auth.getUser();
+    if (userError || !userRes.user) return json({ success: false, message: "Unauthorized" }, 401);
+
+    const url = new URL(req.url);
+    const id = url.searchParams.get("id");
+    const limit = Math.min(Number(url.searchParams.get("limit") ?? 20), 100);
+    const offset = Math.max(Number(url.searchParams.get("offset") ?? 0), 0);
+
+    if (id) {
+      // single order detail (giữ nguyên)
+      const { data, error } = await supabase
+        .from("orders")
+        .select(`
+          id, order_code, created_at, status, total, amount, discount_amount, shipping_address,
+          order_items (
+            id, qty, price_at_time,
+            product:products ( id, name, slug, price, images, stock, status )
+          )
+        `)
+        .eq("id", id)
+        .eq("user_id", userRes.user.id)
+        .single();
+      if (error) return json({ success: false, message: error.message }, 400);
+      return json({ success: true, data });
+    } else {
+      // ✅ thêm shipping_address
+      const { data, error, count } = await supabase
+        .from("orders")
+        .select(
+          `id, order_code, created_at, status, total, amount, payment_link_id, paid_at, shipping_address`,
+          { count: "exact" }
+        )
+        .eq("user_id", userRes.user.id)
+        .order("created_at", { ascending: false })
+        .range(offset, offset + limit - 1);
+      if (error) return json({ success: false, message: error.message }, 400);
+      return json({ success: true, data, count });
+    }
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Internal Server Error";
+    return json({ success: false, message: msg }, 500);
+  }
+}
+
+// ---- PATCH ----
+export async function PATCH(req: NextRequest) {
   try {
     const supabase = await supabaseServer();
 
     // auth
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-    if (userError || !user) {
-      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
-    }
+    const { data: userRes, error: authError } = await supabase.auth.getUser();
+    if (authError || !userRes.user) return json({ success: false, message: "Unauthorized" }, 401);
 
-    // optional pagination
-    const url = new URL(req.url);
-    const limit = Number(url.searchParams.get("limit") ?? 20);
-    const offset = Number(url.searchParams.get("offset") ?? 0);
+    const body = await req.json().catch(() => ({}));
+    const id = String(body?.id ?? "");
+    const next = String(body?.status ?? "").toUpperCase();
 
-    // orders + shipping address + items + product
-    const { data, error, count } = await supabase
+    const ALLOWED = ["PENDING", "PROCESSING", "PAID", "CANCELLED", "FAILED"];
+    if (!id) return json({ success: false, message: "Missing id" }, 400);
+    if (!ALLOWED.includes(next)) return json({ success: false, message: "Invalid status" }, 400);
+
+    const patch: Record<string, any> = { status: next };
+    patch.paid_at = next === "PAID" ? new Date().toISOString() : null;
+
+    // Ràng buộc: chỉ cho phép sửa đơn của chính user (nếu đây là My Orders)
+    // Nếu đây là admin dashboard, tách route admin và dùng service-role (khuyến nghị).
+    const { error } = await supabase
       .from("orders")
-      .select(
-        `
-        id,
-        order_code,
-        created_at,
-        status,
-        total,
-        amount,
-        discount_amount,
-        shipping_address,
-        shipping_address_id,
-        user_addresses(*),
-        order_items (
-          id,
-          qty,
-          price_at_time,
-          product:products (
-            id,
-            name,
-            slug,
-            price,
-            images,
-            stock,
-            status
-          )
-        )
-      `,
-        { count: "exact" }
-      )
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+      .update(patch)
+      .eq("id", id)
+      .eq("user_id", userRes.user.id);
 
-    if (error) {
-      console.error("Supabase GET orders error:", error);
-      return NextResponse.json({ success: false, message: error.message }, { status: 400 });
-    }
-
-    return NextResponse.json({ success: true, data, count }, { status: 200 });
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Internal Server Error";
-    console.error("GET orders error:", error);
-    return NextResponse.json({ success: false, message: msg }, { status: 500 });
+    if (error) return json({ success: false, message: error.message }, 400);
+    return json({ success: true, data: { id, status: next } });
+  } catch (e: any) {
+    return json({ success: false, message: e?.message ?? "Internal Server Error" }, 500);
   }
 }
 
-export async function POST(req: NextRequest) {
-  try {
-    const supabase = await supabaseServer();
-
-    // 1. Get current user
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { success: false, message: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    // 2. Parse body
-    const body = await req.json();
-    const {
-      items,
-      discount_code_id,
-      shipping_address,
-      subtotal,
-      discount,
-      shipping_fee,
-      total,
-    } = body;
-
-    console.log("POST /api/orders - Body:", body);
-
-    // 3. Validate
-    if (!items || items.length === 0) {
-      return NextResponse.json(
-        { success: false, message: "Giỏ hàng trống" },
-        { status: 400 }
-      );
-    }
-
-    if (
-      !shipping_address?.full_name ||
-      !shipping_address?.phone ||
-      !shipping_address?.email ||
-      !shipping_address?.address_line ||
-      !shipping_address?.province ||
-      !shipping_address?.district
-    ) {
-      return NextResponse.json(
-        { success: false, message: "Thiếu thông tin giao hàng" },
-        { status: 400 }
-      );
-    }
-
-    // 4. Kiểm tra địa chỉ đã tồn tại trong user_addresses chưa
-    const { data: existingAddress } = await supabase
-      .from("user_addresses")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("full_name", shipping_address.full_name)
-      .eq("phone", shipping_address.phone)
-      .eq("address_line", shipping_address.address_line)
-      .eq("province", shipping_address.province)
-      .eq("district", shipping_address.district)
-      .maybeSingle();
-
-    let shippingAddressId: string;
-
-    if (existingAddress) {
-      // ✅ Đã có địa chỉ → Dùng luôn
-      shippingAddressId = existingAddress.id;
-      console.log("Using existing address ID:", shippingAddressId);
-    } else {
-      // ❌ Chưa có → Insert mới vào user_addresses
-      const { data: newAddress, error: addressError } = await supabase
-        .from("user_addresses")
-        .insert({
-          user_id: user.id,
-          full_name: shipping_address.full_name,
-          phone: shipping_address.phone,
-          email: shipping_address.email,
-          address_line: shipping_address.address_line,
-          province: shipping_address.province,
-          district: shipping_address.district,
-          ward: shipping_address.ward || null,
-          note: shipping_address.note || null,
-          is_default: false,
-        })
-        .select("id")
-        .single();
-
-      if (addressError) {
-        console.error("Insert user_addresses error:", addressError);
-        return NextResponse.json(
-          { success: false, message: "Không thể lưu địa chỉ giao hàng" },
-          { status: 500 }
-        );
-      }
-
-      shippingAddressId = newAddress.id;
-      console.log("Created new address ID:", shippingAddressId);
-    }
-
-    // 5. Tạo order_code unique (timestamp + random)
-    const orderCode = `ORD${Date.now()}${Math.floor(Math.random() * 1000)}`;
-
-    // 6. Insert vào bảng orders
-    const { data: orderData, error: orderError } = await supabase
-      .from("orders")
-      .insert({
-        user_id: user.id,
-        order_code: orderCode,
-        status: "PENDING",
-        total: total,
-        amount: total,
-        discount_code_id: discount_code_id || null,
-        discount_amount: discount || 0,
-        shipping_address: shipping_address, // ← Lưu full JSON vào field jsonb
-        shipping_address_id: shippingAddressId, // ← FK đến user_addresses
-        payment_link_id: null,
-        paid_at: null,
-        created_at: new Date().toISOString(),
-      })
-      .select("id, order_code")
-      .single();
-
-    if (orderError) {
-      console.error("Insert order error:", orderError);
-      return NextResponse.json(
-        { success: false, message: "Không thể tạo đơn hàng" },
-        { status: 500 }
-      );
-    }
-
-    console.log("Order created:", orderData);
-
-    // 7. Insert items vào order_items
-    const orderItems = items.map((item: any) => ({
-      order_id: orderData.id,
-      product_id: item.id,
-      qty: item.qty,
-      price_at_time: item.price,
-      created_at: new Date().toISOString(),
-    }));
-
-    const { error: itemsError } = await supabase
-      .from("order_items")
-      .insert(orderItems);
-
-    if (itemsError) {
-      console.error("Insert order_items error:", itemsError);
-      // Rollback: Xóa order vừa tạo
-      await supabase.from("orders").delete().eq("id", orderData.id);
-      return NextResponse.json(
-        { success: false, message: "Không thể lưu chi tiết đơn hàng" },
-        { status: 500 }
-      );
-    }
-
-    console.log("Order items inserted:", orderItems.length);
-
-    // 8. Return success
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          orderId: orderData.id,
-          orderCode: orderData.order_code,
-        },
-      },
-      { status: 201 }
-    );
-  } catch (error: any) {
-    console.error("POST /api/orders error:", error);
-    return NextResponse.json(
-      { success: false, message: error.message || "Internal server error" },
-      { status: 500 }
-    );
-  }
-}
