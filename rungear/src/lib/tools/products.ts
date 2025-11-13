@@ -2,31 +2,56 @@ import { supabaseServer } from "@/libs/supabase/supabase-server";
 import { normalizeImages } from "@/types/product";
 import type { Product } from "@/types/product";
 import { searchProductsSchema, getProductDetailsSchema } from "./schemas";
+import { resolveCategoryId, getCategoryName } from "./categories"; // ← IMPORT
+
 
 export async function searchProductsTool(args: unknown) {
   const input = searchProductsSchema.parse(args);
   const { q, categoryId, priceMin, priceMax, limit } = input;
 
-  // Base query: chỉ show "active"
+  console.log("\n🔍 [searchProductsTool] Input:", JSON.stringify(input, null, 2));
+
   const supabase = await supabaseServer();
+  
+  // ← AUTO-RESOLVE CATEGORY (hỗ trợ cả tiếng Anh)
+  let resolvedCategoryId = categoryId;
+  
+  // Nếu categoryId được truyền vào (có thể là "shirts", "áo", "ao", hoặc UUID)
+  if (categoryId && !categoryId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+    // Không phải UUID → Resolve
+    resolvedCategoryId = await resolveCategoryId(categoryId);
+  }
+  
+  // Nếu vẫn chưa có category → Thử extract từ keyword
+  if (!resolvedCategoryId && q) {
+    resolvedCategoryId = await resolveCategoryId(q);
+  }
+
+  if (resolvedCategoryId) {
+    const catName = await getCategoryName(resolvedCategoryId);
+    console.log(`✅ Using category: ${catName} (${resolvedCategoryId})`);
+  }
+
   let query = supabase.from("products").select(`
-      id, slug, name, price, stock, status, description, images, categories_id
+      id,name,slug,price,stock,status,description,images,categories_id
     `)
     .eq("status", "active")
     .limit(limit ?? 3);
 
   if (q && q.length > 0) {
-    // tuỳ khả năng FTS của bạn; ví dụ like đơn giản:
     query = query.ilike("name", `%${q}%`);
   }
-  if (categoryId) query = query.eq("categories_id", categoryId);
+  if (resolvedCategoryId) {
+    query = query.eq("categories_id", resolvedCategoryId);
+  }
   if (priceMin !== undefined) query = query.gte("price", priceMin);
   if (priceMax !== undefined) query = query.lte("price", priceMax);
 
   const { data, error } = await query;
   if (error) throw error;
 
-  // Map kết quả tối ưu cho chatbot (3 lựa chọn + lý do ngắn + link)
+  console.log(`📦 Found ${data?.length || 0} products`);
+
   const items = (data ?? []).map((p: Product) => {
     const imgs = normalizeImages(p.images);
     return {
@@ -37,7 +62,6 @@ export async function searchProductsTool(args: unknown) {
       inStock: p.stock > 0,
       image: imgs[0] ?? null,
       link: `/products/${p.slug}`,
-      // Lý do gợi ý: có thể tinh chỉnh theo thuộc tính; để mặc định ngắn gọn
       reason: [
         p.stock > 0 ? "Còn hàng" : "Hết hàng sắp về",
         p.price ? `Giá tốt trong tầm ngân sách` : undefined,
