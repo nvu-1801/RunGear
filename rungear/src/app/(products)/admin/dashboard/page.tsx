@@ -85,6 +85,7 @@ type OrderVM = {
 function toVM(r: OrderRow): OrderVM {
   const sa = r.shipping_address || {};
   const name = sa.full_name ?? sa.name ?? sa.recipient ?? null;
+
   const normalizedStatus = (r.status ?? "PENDING")
     .toString()
     .toUpperCase() as OrderStatus;
@@ -116,8 +117,8 @@ function Money({ v }: { v: number }) {
   return <span>{Number(v || 0).toLocaleString("vi-VN")} ₫</span>;
 }
 
-function StatusBadge({ value }: { value: string }) {
-  const v = value.toUpperCase();
+function StatusBadge({ value }: { value: string | OrderStatus }) {
+  const v = value.toString().toUpperCase();
   const cls =
     v === "PAID"
       ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
@@ -172,7 +173,6 @@ type OrderDetail = OrderDetailShared;
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
 
   const [orders, setOrders] = useState<OrderVM[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
@@ -198,9 +198,8 @@ export default function DashboardPage() {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    setErr(null);
 
-    fetchJSON<Stats>("/api/dashboard", { timeoutMs: 8000 })
+    fetchJSON<Stats>("/api/admin/orders", { timeoutMs: 8000 })
       .then((data) => {
         if (!mounted) return;
         setStats(
@@ -209,7 +208,8 @@ export default function DashboardPage() {
       })
       .catch((e) => {
         if (!mounted) return;
-        setErr(getMessage(e));
+        console.error("Load stats error:", getMessage(e));
+        setStats(null);
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -225,14 +225,15 @@ export default function DashboardPage() {
     let mounted = true;
     setOrdersLoading(true);
 
-    fetchJSON<OrderRow[]>("/api/orders?limit=10", { timeoutMs: 8000 })
+    // NOTE: nếu bạn có /api/admin/orders thì đổi URL ở đây
+    fetchJSON<OrderRow[]>("/api/admin/orders?limit=10", { timeoutMs: 8000 })
       .then((rows) => {
         if (!mounted) return;
         setOrders((rows ?? []).map(toVM));
       })
       .catch((e) => {
         if (!mounted) return;
-        console.error(getMessage(e));
+        console.error("Load orders error:", getMessage(e));
         setOrders([]);
       })
       .finally(() => {
@@ -253,7 +254,7 @@ export default function DashboardPage() {
     setDetailLoading(true);
 
     // dùng route /api/orders/[id]
-    fetchJSON<any>(`/api/orders/${openId}`, { timeoutMs: 8000 })
+    fetchJSON<any>(`/api/admin/orders/${openId}`, { timeoutMs: 8000 })
       .then((d) => {
         if (!mounted) return;
 
@@ -266,16 +267,14 @@ export default function DashboardPage() {
           amount: Number(d.amount),
           discount_amount: Number(d.discount_amount ?? 0),
           shipping_address: d.shipping_address ?? null,
-          order_items: (d.order_items ?? []).map((it: any): OrderItem => {
-            const raw = it.product ?? null;
-            const product: ProductLite | null = raw ?? null;
-            return {
+          order_items: (d.order_items ?? []).map(
+            (it: any): OrderItem => ({
               id: it.id,
               qty: Number(it.qty),
               price_at_time: Number(it.price_at_time ?? 0),
-              product,
-            };
-          }),
+              product: (it.product ?? null) as ProductLite | null,
+            })
+          ),
         };
 
         setDetail(normalized);
@@ -369,63 +368,47 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {orders.filter(isOrder).map((o) => {
-                  const status = o.status;
-                  const isPaid = status === "PAID";
-                  const isCancel = status === "CANCELLED";
-
-                  return (
-                    <tr
-                      key={o.id}
-                      className="border-t hover:bg-blue-50 transition"
-                    >
-                      <td className="p-3 font-mono">
-                        <button
-                          className="text-blue-700 hover:underline"
-                          onClick={() => setOpenId(o.id)}
-                          aria-label={`Xem chi tiết ${o.order_code}`}
-                        >
-                          {o.order_code}
-                        </button>
-                      </td>
-                      <td className="p-3">
-                        {o.customer_name || (
-                          <span className="text-gray-400">Khách lẻ</span>
-                        )}
-                      </td>
-                      <td className="p-3">
-                        {new Date(o.created_at).toLocaleString(
-                          "vi-VN",
-                          dateFmt as any
-                        )}
-                      </td>
-                      <td className="p-3 font-semibold text-blue-700">
-                        {Number(o.total).toLocaleString("vi-VN")} ₫
-                      </td>
-                      <td className="p-3">
-                        <span
-                          className={`px-2 py-1 rounded-lg border text-xs font-semibold ${
-                            isPaid
-                              ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                              : isCancel
-                              ? "bg-red-50 border-red-200 text-red-700"
-                              : "bg-yellow-50 border-yellow-200 text-yellow-700"
-                          }`}
-                        >
-                          {status}
-                        </span>
-                      </td>
-                      <td className="p-3 text-right">
-                        <button
-                          onClick={() => setOpenId(o.id)}
-                          className="px-2 py-1 rounded-md border hover:bg-blue-50 text-blue-700"
-                        >
-                          Xem
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {orders.filter(isOrder).map((o) => (
+                  <tr
+                    key={o.id}
+                    className="border-t hover:bg-blue-50 transition"
+                  >
+                    <td className="p-3 font-mono">
+                      <button
+                        className="text-blue-700 hover:underline"
+                        onClick={() => setOpenId(o.id)}
+                        aria-label={`Xem chi tiết ${o.order_code}`}
+                      >
+                        {o.order_code}
+                      </button>
+                    </td>
+                    <td className="p-3">
+                      {o.customer_name || (
+                        <span className="text-gray-400">Khách lẻ</span>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      {new Date(o.created_at).toLocaleString(
+                        "vi-VN",
+                        dateFmt as any
+                      )}
+                    </td>
+                    <td className="p-3 font-semibold text-blue-700">
+                      {Number(o.total).toLocaleString("vi-VN")} ₫
+                    </td>
+                    <td className="p-3">
+                      <StatusBadge value={o.status} />
+                    </td>
+                    <td className="p-3 text-right">
+                      <button
+                        onClick={() => setOpenId(o.id)}
+                        className="px-2 py-1 rounded-md border hover:bg-blue-50 text-blue-700"
+                      >
+                        Xem
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -443,6 +426,7 @@ export default function DashboardPage() {
           loading={detailLoading}
           detail={detail}
           onStatusUpdated={(s) => {
+            // sync lại badge trong bảng tương ứng order đang mở
             setOrders((prev) =>
               prev.map((x) => (x.id === openId ? { ...x, status: s } : x))
             );
@@ -570,6 +554,7 @@ function OrderDetailModal({
   if (!open) return null;
 
   type Allowed = (typeof STATUS_OPTIONS)[number]["v"];
+
   async function updateStatus(next: Allowed) {
     if (!detail || saving) return;
     setSaving(true);
@@ -581,16 +566,16 @@ function OrderDetailModal({
       // optimistic update
       (detail as any).status = next;
 
-      await fetchJSON(`/api/orders/${detail.id}`, {
+      // ✅ Gọi API admin
+      await fetchJSON(`/api/admin/orders/${detail.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: next }), // PUT handler mong { status, paid_at? }
+        body: JSON.stringify({ status: next }),
         timeoutMs: 8000,
       });
 
       onStatusUpdated?.(next as OrderStatus);
     } catch (e) {
-      // rollback nếu fail
       (detail as any).status = prev;
       setErrMsg(getMessage(e));
     } finally {
