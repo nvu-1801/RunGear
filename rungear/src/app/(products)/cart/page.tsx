@@ -125,7 +125,7 @@ export default function CartPage() {
             {tab === "cart" ? "Giỏ hàng" : "📦 Đơn hàng của bạn"}
           </h1>
           <Link
-            href="/products/home"
+            href="/home"
             className="text-sm text-blue-700 hover:text-blue-900 underline-offset-4 hover:underline font-medium"
           >
             ← Tiếp tục mua sắm
@@ -185,7 +185,7 @@ export default function CartPage() {
                 Hãy thêm sản phẩm để bắt đầu thanh toán nhé.
               </p>
               <Link
-                href="/products/home"
+                href="/home"
                 className="inline-flex mt-6 rounded-xl border border-blue-600 text-blue-700 px-6 py-2.5 text-sm font-semibold hover:bg-blue-50 transition"
               >
                 Mua sắm ngay
@@ -289,7 +289,7 @@ export default function CartPage() {
                   Hãy mua sắm để tạo đơn hàng đầu tiên!
                 </p>
                 <Link
-                  href="/products/home"
+                  href="/home"
                   className="inline-flex mt-6 rounded-xl border border-blue-600 text-blue-700 px-6 py-2.5 text-sm font-semibold hover:bg-blue-50 transition"
                 >
                   Mua sắm ngay

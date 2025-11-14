@@ -1,61 +1,122 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/libs/supabase/supabase-server";
 
-function asOrderCodeNumber(v: unknown): number | null {
-  if (typeof v === "number" && Number.isFinite(v)) return v;
-  if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) {
-    const n = Number(v.trim());
-    if (n > Number.MAX_SAFE_INTEGER || n < Number.MIN_SAFE_INTEGER) {
-      console.warn("order_code exceeds safe integer range:", n);
-      return null;
-    }
-    return n;
-  }
-  return null;
-}
-
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Await params in Next.js 15+
-  const { id } = await params;
+  try {
+    const { id } = await params;
+    console.log("🔍 GET /api/orders/[id]:", id);
 
-  const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    const supabase = await supabaseServer();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
-  if (!user) {
+    if (authError || !user) {
+      console.error("Auth error:", authError);
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    // ✅ FIX: Normalize orderCode - Thêm prefix "ORD" nếu là number
+    let orderCode: string;
+
+    if (/^\d+$/.test(id)) {
+      // Case 1: ID là pure number (từ PayOS redirect)
+      orderCode = `ORD${id}`;
+      console.log("  Normalized to:", orderCode);
+    } else if (id.startsWith("ORD")) {
+      // Case 2: ID đã có prefix "ORD"
+      orderCode = id;
+      console.log("  Using orderCode:", orderCode);
+    } else {
+      // Case 3: ID là UUID
+      console.log("  Treating as UUID:", id);
+      const { data, error } = await supabase
+        .from("orders")
+        .select(
+          `
+          *,
+          order_items(
+            *,
+            products(id, name, slug, images)
+          ),
+          discount_codes(id, code, type, percent_off, amount_off)
+        `
+        )
+        .eq("user_id", user.id)
+        .eq("id", id)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Query error (UUID):", error);
+        return NextResponse.json(
+          { success: false, error: error.message },
+          { status: 500 }
+        );
+      }
+
+      if (!data) {
+        return NextResponse.json(
+          { success: false, error: "Order not found" },
+          { status: 404 }
+        );
+      }
+
+      console.log("✅ Order found (UUID):", data.id, data.order_code, data.status);
+      return NextResponse.json({ success: true, data });
+    }
+
+    // ✅ Query by order_code (string with "ORD" prefix)
+    const { data, error } = await supabase
+      .from("orders")
+      .select(
+        `
+        *,
+        order_items(
+          *,
+          products(id, name, slug, images)
+        ),
+        discount_codes(id, code, type, percent_off, amount_off)
+      `
+      )
+      .eq("user_id", user.id)
+      .eq("order_code", orderCode)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Query error (orderCode):", error);
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 500 }
+      );
+    }
+
+    if (!data) {
+      console.log("❌ Order not found for code:", orderCode);
+      return NextResponse.json(
+        { success: false, error: "Order not found" },
+        { status: 404 }
+      );
+    }
+
+    console.log("✅ Order found:", data.id, data.order_code, data.status);
+    return NextResponse.json({ success: true, data });
+  } catch (error: unknown) {
+    console.error("GET /api/orders/[id] error:", error);
     return NextResponse.json(
-      { success: false, error: "Unauthorized" },
-      { status: 401 }
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Internal server error",
+      },
+      { status: 500 }
     );
   }
-
-  const codeNum = asOrderCodeNumber(id);
-  if (codeNum === null) {
-    return NextResponse.json(
-      { success: false, error: "Invalid order code" },
-      { status: 400 }
-    );
-  }
-
-  const { data, error } = await supabase
-    .from("orders")
-    .select("*")
-    .eq("user_id", user.id)
-    .eq("order_code", codeNum) // ✅ bigint so với number
-    .single();
-
-  if (error) {
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 400 }
-    );
-  }
-
-  return NextResponse.json({ success: true, data });
 }
 
 export async function PUT(
@@ -65,7 +126,6 @@ export async function PUT(
   try {
     const supabase = await supabaseServer();
 
-    // Get current user
     const {
       data: { user },
       error: userError,
@@ -82,7 +142,6 @@ export async function PUT(
     const body = await req.json();
     const { status, paid_at } = body;
 
-    // Validate
     if (!status) {
       return NextResponse.json(
         { success: false, error: "Thiếu trạng thái đơn hàng" },
@@ -97,6 +156,7 @@ export async function PUT(
       "CANCELLED",
       "FAILED",
     ];
+
     if (!validStatuses.includes(status)) {
       return NextResponse.json(
         { success: false, error: "Trạng thái không hợp lệ" },
@@ -104,10 +164,7 @@ export async function PUT(
       );
     }
 
-    const payload: Record<string, unknown> = {
-      status,
-    };
-
+    const payload: Record<string, unknown> = { status };
     if (status === "PAID" && paid_at) {
       payload.paid_at = paid_at;
     }
@@ -150,7 +207,6 @@ export async function DELETE(
   try {
     const supabase = await supabaseServer();
 
-    // Get current user
     const {
       data: { user },
       error: userError,
@@ -164,7 +220,6 @@ export async function DELETE(
     }
 
     const { id } = await params;
-
     console.log("DELETE order id:", id);
 
     const { error } = await supabase

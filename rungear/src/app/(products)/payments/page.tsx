@@ -95,7 +95,7 @@ export default function PaymentsPage() {
               Hãy thêm sản phẩm để tiếp tục thanh toán.
             </p>
             <Link
-              href="/products/home"
+              href="/home"
               className="inline-flex mt-6 rounded-xl border border-blue-600 text-blue-700 px-6 py-2.5 text-sm font-semibold hover:bg-blue-50 transition"
             >
               Mua sắm ngay
