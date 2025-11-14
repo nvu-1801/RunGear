@@ -3,6 +3,101 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
+// ✅ THÊM: Helper function format AI response
+function formatAIResponse(text: string): React.ReactNode {
+  if (!text) return null;
+
+  const lines = text.split('\n');
+  const elements: React.ReactNode[] = [];
+    
+  lines.forEach((line, index) => {
+    let processedLine = line;
+    const boldRegex = /\*\*(.+?)\*\*/g;
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = boldRegex.exec(line)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(line.substring(lastIndex, match.index));
+      }
+      parts.push(
+        <strong key={`bold-${index}-${match.index}`} className="font-bold text-gray-900">
+          {match[1]}
+        </strong>
+      );
+      lastIndex = match.index + match[0].length;
+    }
+    
+    if (lastIndex < line.length) {
+      parts.push(line.substring(lastIndex));
+    }
+
+    const formattedParts = parts.map((part, partIndex) => {
+      if (typeof part !== 'string') return part;
+
+      const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+      const linkParts: React.ReactNode[] = [];
+      let lastLinkIndex = 0;
+      let linkMatch;
+
+      while ((linkMatch = markdownLinkRegex.exec(part)) !== null) {
+        if (linkMatch.index > lastLinkIndex) {
+          linkParts.push(part.substring(lastLinkIndex, linkMatch.index));
+        }
+
+        const linkText = linkMatch[1];
+        const linkUrl = linkMatch[2];
+        const isInternal = linkUrl.startsWith('/');
+
+        linkParts.push(
+          isInternal ? (
+            <Link
+              key={`link-${index}-${partIndex}-${linkMatch.index}`}
+              href={linkUrl}
+              target="_blank"  // ← THÊM: Mở tab mới
+              rel="noopener noreferrer"  // ← THÊM: Security
+              className="text-indigo-600 underline hover:text-indigo-800 font-semibold"
+            >
+              {linkText}
+            </Link>
+          ) : (
+            <a
+              key={`link-${index}-${partIndex}-${linkMatch.index}`}
+              href={linkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-indigo-600 underline hover:text-indigo-800 font-semibold"
+            >
+              {linkText}
+            </a>
+          )
+        );
+
+        lastLinkIndex = linkMatch.index + linkMatch[0].length;
+      }
+
+      if (lastLinkIndex < part.length) {
+        linkParts.push(part.substring(lastLinkIndex));
+      }
+
+      return linkParts.length > 0 ? linkParts : part;
+    });
+
+    if (formattedParts.length > 0) {
+      elements.push(
+        <p key={`line-${index}`} className="mb-2 last:mb-0 text-[15px] leading-relaxed text-gray-800">
+          {formattedParts}
+        </p>
+      );
+    } else if (line.trim() === '') {
+      elements.push(<br key={`br-${index}`} />);
+    }
+  });
+
+  return <div className="space-y-1">{elements}</div>;
+}
+
 type Msg = {
   id: string;
   role: "user" | "assistant";
@@ -61,6 +156,7 @@ export default function RunGearAIChat() {
     setTimeout(() => onSend(p), 0);
   };
 
+  // ✅ SỬA FUNCTION onSend() - ĐỔI TỪ STREAMING → JSON
   const onSend = async (preset?: string) => {
     const text = (preset ?? input).trim();
     if (!text) return;
@@ -81,43 +177,58 @@ export default function RunGearAIChat() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: text, history: historyForApi }),
       });
-      if (!res.ok || !res.body) throw new Error(`AI error ${res.status}`);
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let done = false;
-      let finalAnswer = "";
-
-      while (!done) {
-        const { value, done: d } = await reader.read();
-        done = d;
-        if (value) {
-          const chunk = decoder.decode(value);
-          finalAnswer += chunk;
-          setMsgs((m) => m.map((msg) => (msg.id === asstLocalId ? { ...msg, text: msg.text + chunk } : msg)));
-        }
+      if (!res.ok) {
+        throw new Error(`AI error ${res.status}`);
       }
 
-      // log
+      // ✅ FIX: Parse JSON response thay vì streaming
+      const data = await res.json();
+      
+      // ✅ CHỈ LẤY FIELD 'text' TỪ RESPONSE
+      const aiText = data.text || "Xin lỗi, không nhận được phản hồi.";
+
+      // Update message với text đã parse
+      setMsgs((m) => 
+        m.map((msg) => 
+          msg.id === asstLocalId 
+            ? { ...msg, text: aiText }
+            : msg
+        )
+      );
+
+      // Log
       try {
         await fetch("/api/ai/log", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId: sessionRef.current ?? null, role: "user", text, meta: { model: "gemini-1.5-flash" } }),
+          body: JSON.stringify({ 
+            sessionId: sessionRef.current ?? null, 
+            role: "user", 
+            text, 
+            meta: { model: data.model || "gemini-1.5-flash" } 
+          }),
         });
       } catch {}
+      
       try {
         await fetch("/api/ai/log", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId: sessionRef.current ?? null, role: "assistant", text: finalAnswer, meta: { model: "gemini-1.5-flash" } }),
+          body: JSON.stringify({ 
+            sessionId: sessionRef.current ?? null, 
+            role: "assistant", 
+            text: aiText, 
+            meta: { model: data.model || "gemini-1.5-flash" } 
+          }),
         });
       } catch {}
+
     } catch (e) {
       setMsgs((m) =>
         m.map((msg) =>
           msg.id === asstLocalId
-            ? { ...msg, text: (msg.text || "") + "\n\nXin lỗi, hệ thống AI đang bận. Vui lòng thử lại." }
+            ? { ...msg, text: "Xin lỗi, hệ thống AI đang bận. Vui lòng thử lại." }
             : msg
         )
       );
@@ -174,7 +285,13 @@ export default function RunGearAIChat() {
               <div className="order-2 ml-1 mt-0.5 h-8 w-8 rounded-full bg-emerald-500 text-white grid place-items-center font-bold text-[11px]">You</div>
             )}
             <div className={m.role === "user" ? "max-w-[78%] rounded-2xl rounded-br-sm bg-indigo-600 text-white px-4 py-2 shadow" : "max-w-[78%] rounded-2xl rounded-bl-sm bg-white border px-4 py-2 shadow-sm"}>
-              <p className={m.role === "user" ? "whitespace-pre-wrap text-[15px] leading-relaxed" : "whitespace-pre-wrap text-[16px] leading-relaxed font-medium text-gray-800"}>{m.text}</p>
+              {/* ✅ SỬA: Render với format function cho assistant */}
+              {m.role === "user" ? (
+                <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{m.text}</p>
+              ) : (
+                formatAIResponse(m.text)
+              )}
+              
               {m.role === "assistant" && (
                 <div className="mt-1 flex items-center gap-1 text-gray-400">
                   <button onClick={() => rateMessage(m.id, "up")} className={`h-7 w-7 grid place-items-center rounded hover:bg-gray-100 ${m.rating === "up" ? "text-emerald-600" : ""}`} title="Hữu ích">👍</button>
@@ -184,7 +301,6 @@ export default function RunGearAIChat() {
             </div>
           </div>
         ))}
-        {/** loader nhỏ khi sending */}
       </div>
 
       {/* Input */}
@@ -195,7 +311,7 @@ export default function RunGearAIChat() {
             <textarea
               id="rg-ai-input"
               rows={1}
-              placeholder="Hỏi AI: Ví dụ “Tìm giúp tôi giày chạy êm chân dưới 1 triệu”…"
+              placeholder="Hỏi AI: Ví dụ Tìm giúp tôi giày chạy êm chân dưới 1 triệu"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKeyDown}
