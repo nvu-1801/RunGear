@@ -117,13 +117,6 @@ export default async function ProductsGroupLayout({
                               >
                                 Mã giảm giá
                               </Link>
-                              <Link
-                                href="/admin/support"
-                                className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-blue-50 rounded-lg transition-all duration-200 hover:translate-x-1"
-                                role="menuitem"
-                              >
-                                Support Chat
-                              </Link>
                             </div>
                           </div>
                         )}
@@ -209,6 +202,30 @@ export default async function ProductsGroupLayout({
                   </div>
                 </div>
 
+                {/* ✅ ADMIN SUPPORT CHAT BUTTON - Chỉ hiện cho admin */}
+                {isAdmin && (
+                  <Link
+                    href="/admin/support"
+                    className="relative flex flex-col items-center hover:text-blue-600 transition-all duration-300 hover:scale-110 active:scale-95 animate-in fade-in slide-in-from-top duration-700 delay-[350ms]"
+                  >
+                    <div className="relative">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="w-6 h-6 transition-transform duration-300 hover:rotate-12"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
+                      {/* Badge notification (optional) */}
+                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
+                    </div>
+                    <span className="mt-1 select-none">Chat</span>
+                  </Link>
+                )}
+
                 {/* CART */}
                 <div className="flex flex-col items-center hover:text-blue-600 transition-all duration-300 hover:scale-110 active:scale-95 animate-in fade-in slide-in-from-top duration-700 delay-[400ms]">
                   <div className="w-6 h-6 flex items-center justify-center">
@@ -271,22 +288,18 @@ export default async function ProductsGroupLayout({
                       >
                         Manage Products
                       </Link>
+                      {/* ✅ Support Chat for Admin in Mobile */}
+                      <Link
+                        href="/admin/support"
+                        className="flex items-center gap-2 py-2 hover:text-blue-600 transition-all duration-200 hover:translate-x-1 animate-in fade-in slide-in-from-left duration-500 delay-125"
+                      >
+                        💬 <span>Support Chat</span>
+                        <span className="ml-auto w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                      </Link>
                       <hr className="my-2 border-gray-200 animate-in fade-in duration-500" />
                     </>
                   ) : (
                     <>
-                      <Link
-                        href="/profile"
-                        className="py-2 hover:text-blue-600 transition-all duration-200 hover:translate-x-1 animate-in fade-in slide-in-from-left duration-500 delay-75"
-                      >
-                        Hồ sơ của tôi
-                      </Link>
-                      <Link
-                        href="/orders"
-                        className="py-2 hover:text-blue-600 transition-all duration-200 hover:translate-x-1 animate-in fade-in slide-in-from-left duration-500 delay-100"
-                      >
-                        Đơn hàng của tôi
-                      </Link>
                       <hr className="my-2 border-gray-200 animate-in fade-in duration-500" />
                     </>
                   )}

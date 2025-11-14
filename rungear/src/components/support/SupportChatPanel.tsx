@@ -6,7 +6,6 @@ import { RealtimeChat } from "../chat/realtime-chat";
 
 type DBMsg = {
   id: string;
-  session_id: string;
   user_id: string | null;
   role: "admin" | "user";
   text: string;
@@ -20,114 +19,107 @@ type ChatMessage = {
   createdAt: string;
 };
 
-export default function SupportChatPanel({ sessionId }: { sessionId: string }) {
+export default function SupportChatPanel({ userId }: { userId: string }) {
   const sb = supabaseBrowser();
   const [initial, setInitial] = useState<ChatMessage[]>([]);
-  const roomName = `support:${sessionId}`;
+  const [loading, setLoading] = useState(true);
 
-  // dedupe / prevent concurrent sends
+  const roomName = `support:user:${userId}`;
+
   const lastSentRef = useRef<{ sig: string; ts: number } | null>(null);
   const sendingRef = useRef(false);
 
-  // Load lịch sử từ DB và map -> ChatMessage
+  // ✅ Load lịch sử theo user_id
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const { data, error } = await sb
-        .from("support_messages")
-        .select("id, session_id, user_id, role, text, created_at")
-        .eq("session_id", sessionId)
-        .order("created_at", { ascending: true });
+      try {
+        setLoading(true);
+        const { data, error } = await sb
+          .from("support_messages")
+          .select("id, user_id, role, text, created_at")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: true });
 
-      if (!mounted) return;
-      if (error) {
-        console.error("load messages error:", error);
+        if (!mounted) return;
+
+        if (error || !Array.isArray(data)) {
+          console.error("load messages error:", error);
+          setInitial([]);
+          return;
+        }
+
+        const mapped = (data as DBMsg[]).map((m) => ({
+          id: m.id,
+          content: m.text || "",
+          user: { name: m.role === "admin" ? "Admin" : "Khách" },
+          createdAt: m.created_at,
+        }));
+
+        setInitial(mapped);
+      } catch (e) {
+        console.error("Failed to load messages:", e);
         setInitial([]);
-        return;
+      } finally {
+        if (mounted) setLoading(false);
       }
-
-      // Type guard for data
-      if (!Array.isArray(data)) {
-        setInitial([]);
-        return;
-      }
-
-      const mapped = (data as DBMsg[]).map((m) => ({
-        id: m.id,
-        content: m.text,
-        user: { name: m.role === "admin" ? "Admin" : "Khách" },
-        createdAt: m.created_at,
-      }));
-      setInitial(mapped);
     })();
+
     return () => {
       mounted = false;
     };
-  }, [sb, sessionId]);
+  }, [sb, userId]);
 
-  // Khi admin gửi từ UI → ghi vào DB (role=admin).
+  // ✅ Admin gửi message
   const handleMessage = useCallback(
     async (next: ChatMessage[]) => {
-      const last = next[next.length - 1];
-      if (!last) return;
+      if (!Array.isArray(next) || next.length === 0) return;
 
-      const sig = `${last.content}::${sessionId}`;
+      const last = next[next.length - 1];
+      if (!last?.content) return;
+
+      const sig = `${last.content}::${userId}`;
       const now = Date.now();
 
-      // ignore identical send within 3s
       const lastEntry = lastSentRef.current;
-      if (lastEntry && lastEntry.sig === sig && now - lastEntry.ts < 3000) {
-        return;
+      if (lastEntry && lastEntry.sig === sig) {
+        const elapsed = now - lastEntry.ts;
+        if (elapsed < 2000) {
+          console.log("[SupportChatPanel] Duplicate within 2s, skip");
+          return;
+        }
       }
 
       if (sendingRef.current) return;
       sendingRef.current = true;
+
       try {
         const { data, error: authErr } = await sb.auth.getUser();
 
-        // Type guard for user data
-        if (authErr) {
-          console.error("Admin auth error:", authErr);
-          return;
-        }
-
-        if (
-          !data ||
-          typeof data !== "object" ||
-          !("user" in data) ||
-          !data.user ||
-          typeof data.user !== "object"
-        ) {
+        if (authErr || !data?.user?.id) {
           console.error("Admin not authenticated");
           return;
         }
 
-        const user = data.user as { id?: string };
-        if (!user.id) {
-          console.error("Admin user has no id");
-          return;
-        }
-
         const { error } = await sb.from("support_messages").insert({
-          session_id: sessionId,
-          user_id: user.id,
+          user_id: userId,
+          session_id: null,
           role: "admin",
           text: last.content,
         });
 
         if (error) {
-          console.error("Insert failed:", error.message ?? error);
+          console.error("Insert failed:", error);
         } else {
-          lastSentRef.current = { sig, ts: Date.now() };
+          lastSentRef.current = { sig, ts: now }; // ✅ fix: thêm ts
         }
-      } catch (e: unknown) {
-        const errorMessage = e instanceof Error ? e.message : "Unknown error";
-        console.error("handleMessage error:", errorMessage);
+      } catch (e) {
+        console.error("handleMessage error:", e);
       } finally {
         sendingRef.current = false;
       }
     },
-    [sb, sessionId]
+    [sb, userId]
   );
 
   return (
@@ -136,18 +128,24 @@ export default function SupportChatPanel({ sessionId }: { sessionId: string }) {
         <div className="flex items-center justify-between">
           <div className="font-semibold text-gray-800">Admin Support</div>
           <span className="text-xs text-gray-500">
-            #{sessionId.slice(0, 8)}…
+            user:{userId.slice(0, 8)}…
           </span>
         </div>
       </div>
 
       <div className="flex-1 min-h-0">
-        <RealtimeChat
-          roomName={roomName}
-          username="Admin"
-          messages={initial}
-          onMessage={handleMessage}
-        />
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        ) : (
+          <RealtimeChat
+            roomName={roomName}
+            username="Admin"
+            messages={initial}
+            onMessage={handleMessage}
+          />
+        )}
       </div>
     </div>
   );

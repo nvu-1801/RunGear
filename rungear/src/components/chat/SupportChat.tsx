@@ -31,7 +31,6 @@ function useChatSession(): string | null {
     try {
       let cur = localStorage.getItem("rg_chat_session");
       if (!isValidSessionId(cur)) {
-        // Type guard for crypto.randomUUID
         const cryptoObj = typeof crypto !== "undefined" ? crypto : null;
         const hasRandomUUID =
           cryptoObj &&
@@ -62,69 +61,71 @@ function useChatSession(): string | null {
 export default function SupportChat() {
   const sb = supabaseBrowser();
   const sid = useChatSession();
-  const roomName = sid ? `support:${sid}` : undefined;
 
   const [initial, setInitial] = useState<ChatMessage[]>([]);
   const [username, setUsername] = useState<string>("Guest");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  // prevent duplicate sends: remember last send signature and timestamp
-  const lastSentRef = useRef<{ sig: string; ts: number } | null>(null);
+  const lastSentRef = useRef<{ sig: string } | null>(null);
   const sendingRef = useRef(false);
 
-  // Lấy thông tin user (id + email) trước để map lịch sử đúng vị trí
+  // ✅ roomName ưu tiên user_id, fallback session
+  const roomName = useMemo(() => {
+    if (currentUserId) return `support:user:${currentUserId}`;
+    if (sid) return `support:session:${sid}`;
+    return undefined;
+  }, [currentUserId, sid]);
+
+  // Load user info
   useEffect(() => {
     (async () => {
       try {
         const { data } = await sb.auth.getUser();
-
-        // Type guard for user data
-        if (
-          data &&
-          typeof data === "object" &&
-          "user" in data &&
-          data.user &&
-          typeof data.user === "object"
-        ) {
-          const user = data.user as { id?: string; email?: string };
-          if (user.email) setUsername(user.email);
-          if (user.id) setCurrentUserId(user.id);
+        console.log("[SupportChat] Loaded user info:", data); // ✅ sửa clgog -> console.log
+        if (data?.user) {
+          if (data.user.email) setUsername(data.user.email);
+          if (data.user.id) setCurrentUserId(data.user.id);
         }
-      } catch (e: unknown) {
-        // ignore
+      } catch (e) {
+        console.error("[SupportChat] getUser error:", e);
       }
     })();
   }, [sb]);
 
-  // Load lịch sử từ DB — chạy sau khi đã biết currentUserId (hoặc ít nhất sid)
+  // ✅ Load lịch sử: ưu tiên user_id, fallback session_id
   useEffect(() => {
-    if (!sid) return;
+    if (!sid && !currentUserId) return;
     let mounted = true;
+
     (async () => {
       try {
-        const { data, error } = await sb
+        let query = sb
           .from("support_messages")
           .select("id, session_id, user_id, role, text, created_at")
-          .eq("session_id", sid)
           .order("created_at", { ascending: true });
 
-        if (!mounted) return;
-        if (error) {
+        if (currentUserId) {
+          query = query.eq("user_id", currentUserId);
+        } else if (sid) {
+          query = query.eq("session_id", sid);
+        } else {
+          return;
+        }
+
+        const { data, error } = await query;
+
+        if (!mounted || error || !Array.isArray(data)) {
+          if (error) {
+            console.error("[SupportChat] load history error:", error);
+          }
           setInitial([]);
           return;
         }
 
-        // Type guard for data
-        if (!Array.isArray(data)) {
-          setInitial([]);
-          return;
-        }
-
-        // map: xác định "mình" nếu message.session_id === sid  OR message.user_id === currentUserId
         const mapped = (data as DBMsg[]).map((m) => {
           const isMine =
-            (m.session_id && sid && m.session_id === sid) ||
-            (m.user_id && currentUserId && m.user_id === currentUserId);
+            (m.user_id && currentUserId && m.user_id === currentUserId) ||
+            (!currentUserId && m.session_id && sid && m.session_id === sid);
 
           const name = isMine
             ? username ?? "You"
@@ -137,59 +138,79 @@ export default function SupportChat() {
             content: m.text,
             user: { name },
             createdAt: m.created_at,
-          } as ChatMessage;
+          };
         });
 
         setInitial(mapped);
-      } catch (e: unknown) {
+      } catch (e) {
+        console.error("[SupportChat] load history exception:", e);
         if (mounted) setInitial([]);
       }
     })();
+
     return () => {
       mounted = false;
     };
   }, [sb, sid, currentUserId, username]);
 
-  // Gửi từ UI → ghi DB role=user
+  // ✅ handleMessage: dedupe theo message.id, không theo content
   const handleMessage = useCallback(
     async (next: ChatMessage[]) => {
-      if (!sid) return;
+      if (!roomName) {
+        console.warn("[SupportChat] No roomName, skip save to DB");
+        return;
+      }
       const last = next[next.length - 1];
       if (!last) return;
 
-      const sig = `${last.content}::${sid}`;
-      const now = Date.now();
+      const sig = last.id; // ✅ mỗi message id là duy nhất
 
-      // simple dedupe: ignore identical send within 3s
+      // Nếu đã lưu message này rồi thì không insert nữa
       const lastEntry = lastSentRef.current;
-      if (lastEntry && lastEntry.sig === sig && now - lastEntry.ts < 3000) {
+      if (lastEntry && lastEntry.sig === sig) {
+        console.log("[SupportChat] Duplicate same message id, skip");
         return;
       }
 
-      if (sendingRef.current) return; // avoid concurrent sends
+      if (sendingRef.current) {
+        console.log("[SupportChat] Already sending, skip");
+        return;
+      }
       sendingRef.current = true;
+
       try {
         const {
           data: { user },
+          error: userErr,
         } = await sb.auth.getUser();
-
-        const { error } = await sb.from("support_messages").insert({
-          session_id: sid,
-          user_id: user?.id ?? null,
-          role: "user",
-          text: last.content,
-        });
-
-        if (!error) {
-          lastSentRef.current = { sig, ts: Date.now() };
+        if (userErr) {
+          console.error("[SupportChat] auth.getUser error:", userErr);
         }
-      } catch (e: unknown) {
-        // ignore
+        console.log("[SupportChat] Sending message as user:", user?.id);
+
+        const { data, error } = await sb
+          .from("support_messages")
+          .insert({
+            session_id: sid ?? null,
+            user_id: user?.id ?? null,
+            role: "user",
+            text: last.content,
+          })
+          .select("id");
+
+        if (error) {
+          console.error("[SupportChat] INSERT support_messages error:", error);
+        } else {
+          console.log("[SupportChat] INSERT OK, row:", data);
+          lastSentRef.current = { sig }; // ✅ đánh dấu đã lưu message này
+        }
+      } catch (e) {
+        console.error("[SupportChat] handleMessage exception:", e);
       } finally {
         sendingRef.current = false;
       }
     },
-    [sb, sid]
+    [sb, sid, roomName]
   );
 
   if (!roomName) return null;
