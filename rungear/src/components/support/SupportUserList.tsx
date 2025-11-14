@@ -1,14 +1,19 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
-import { supabaseBrowser } from "@/libs/supabase/supabase-client";
+import { useMemo, useState, useEffect } from "react";
 
-type Props = {
-  sessions: { session_id: string; user_id: string | null }[];
-  selectedSession: string | null;
-  onSelect: (sid: string) => void;
+type Thread = {
+  user_id: string;
+  email: string | null;
+  full_name: string | null;
+  last_message: string | null;
+  last_message_at: string;
 };
 
-type UserLite = { email: string | null };
+type Props = {
+  threads: Thread[];
+  selectedUserId: string | null;
+  onSelect: (userId: string) => void;
+};
 
 const COLORS = [
   "from-indigo-500 to-sky-500",
@@ -23,107 +28,47 @@ function pickGradient(key: string) {
   let hash = 0;
   for (let i = 0; i < key.length; i++)
     hash = (hash * 31 + key.charCodeAt(i)) | 0;
-  const idx = Math.abs(hash) % COLORS.length;
-  return COLORS[idx];
-}
-
-// Normalize user_id:
-// - accept plain UUID
-// - accept "<uuid>-sess" and return uuid
-// - accept strings that contain a UUID and return first uuid
-function normalizeUserId(v: unknown): string | null {
-  if (typeof v !== "string") return null;
-  const s = v.trim();
-  if (!s) return null;
-
-  // direct UUID match
-  const uuidFull = s.match(
-    /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
-  );
-  if (uuidFull) return uuidFull[1];
-
-  // uuid with suffix like "-sess"
-  const uuidWithSuffix = s.match(
-    /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})[-_].*/i
-  );
-  if (uuidWithSuffix) return uuidWithSuffix[1];
-
-  // any uuid occurring inside string
-  const anyUuid = s.match(
-    /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i
-  );
-  if (anyUuid) return anyUuid[1];
-
-  return null;
+  return COLORS[Math.abs(hash) % COLORS.length];
 }
 
 export default function SupportUserList({
-  sessions,
-  selectedSession,
+  threads,
+  selectedUserId,
   onSelect,
 }: Props) {
-  const sb = supabaseBrowser();
-  const [users, setUsers] = useState<Record<string, UserLite | null>>({});
   const [q, setQ] = useState("");
 
+  // 👀 log mỗi lần threads thay đổi
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        if (!sb) return;
-
-        console.debug("[SupportUserList] sessions count:", sessions.length);
-        const ids = Array.from(
-          new Set(
-            sessions
-              .map((s) => normalizeUserId(s.user_id)) // <- changed to normalizeUserId
-              .filter((id): id is string => Boolean(id))
-          )
-        );
-
-        console.debug("[SupportUserList] normalized user ids:", ids);
-
-        if (ids.length === 0) return;
-
-        const { data, error } = await sb
-          .from("profiles")
-          .select("id, email")
-          .in("id", ids);
-
-        if (!mounted) return;
-        if (error) {
-          console.error("load profiles error:", error);
-          return;
-        }
-        if (data) {
-          const map: Record<string, UserLite | null> = {};
-          for (const row of data as { id: string; email: string | null }[]) {
-            map[row.id] = { email: row.email };
-          }
-          setUsers((prev) => ({ ...prev, ...map }));
-        }
-      } catch (e) {
-        console.error("SupportUserList load profiles failed:", e);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [sessions, sb]);
+    console.log("[SupportUserList] threads prop:", threads);
+    if (threads.length > 0) {
+      console.log("[SupportUserList] first thread:", threads[0]);
+      console.log("[SupportUserList] first thread email:", threads[0].email);
+    }
+  }, [threads]);
 
   const filtered = useMemo(() => {
     const keyword = q.trim().toLowerCase();
-    if (!keyword) return sessions;
-    return sessions.filter((s) => {
-      const norm = normalizeUserId(s.user_id); // <- changed to normalizeUserId
-      const email = norm ? users[norm]?.email ?? "" : "";
-      const sid = String(s.session_id ?? "");
+    console.log("[SupportUserList] filter keyword:", keyword);
+
+    if (!keyword) {
+      console.log("[SupportUserList] filtered = threads (no keyword)");
+      return threads;
+    }
+
+    const result = threads.filter((t) => {
+      const email = t.email ?? "";
+      const name = t.full_name ?? "";
       return (
         email.toLowerCase().includes(keyword) ||
-        sid.toLowerCase().includes(keyword)
+        name.toLowerCase().includes(keyword) ||
+        t.user_id.toLowerCase().includes(keyword)
       );
     });
-  }, [q, sessions, users]);
+
+    console.log("[SupportUserList] filtered result:", result);
+    return result;
+  }, [q, threads]);
 
   return (
     <div className="h-full flex flex-col">
@@ -139,7 +84,7 @@ export default function SupportUserList({
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Tìm theo email hoặc session id…"
+            placeholder="Tìm theo email hoặc tên..."
             className="w-full h-10 rounded-xl border border-gray-300 pl-10 pr-3 text-sm focus:ring-2 focus:ring-indigo-400/60"
           />
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
@@ -150,21 +95,22 @@ export default function SupportUserList({
 
       {/* List */}
       <ul className="flex-1 overflow-y-auto divide-y divide-gray-100 bg-gradient-to-b from-gray-50/60 to-white">
-        {filtered.map((s) => {
-          const sid = String(s.session_id ?? "");
-          const norm = normalizeUserId(s.user_id);
-          const email = norm
-            ? users[norm]?.email ?? `Khách vãng lai (${sid.slice(0, 6)}…)`
-            : `Khách vãng lai (${sid.slice(0, 6)}…)`;
-          const logged = Boolean(norm && users[norm]);
-          const active = selectedSession === s.session_id;
-          const grad = pickGradient(sid);
+        {filtered.map((t, idx) => {
+          // 👀 log từng item khi render
+          console.log("[SupportUserList] render item", idx, t);
+
+          const active = selectedUserId === t.user_id;
+          const email = t.email ?? "khách";
+          const grad = pickGradient(t.user_id);
           const initials = (email || "G").slice(0, 1).toUpperCase();
 
           return (
             <li
-              key={sid}
-              onClick={() => onSelect(sid)}
+              key={t.user_id}
+              onClick={() => {
+                console.log("[SupportUserList] click user:", t.user_id);
+                onSelect(t.user_id);
+              }}
               className={`group px-4 py-3 cursor-pointer transition ${
                 active ? "bg-indigo-50/80" : "hover:bg-gray-50"
               }`}
@@ -177,26 +123,16 @@ export default function SupportUserList({
                   <span className="text-sm font-bold">{initials}</span>
                 </div>
 
-                {/* Texts */}
+                {/* Info */}
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <div className="font-medium text-gray-800 truncate text-sm">
-                      {email}
-                    </div>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full ${
-                        active
-                          ? "bg-indigo-600 text-white"
-                          : logged
-                          ? "bg-gray-100 text-gray-600"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {logged ? "Đã đăng nhập" : "Guest"}
-                    </span>
+                  <div className="font-medium text-gray-800 truncate text-sm">
+                    {email}
                   </div>
                   <div className="text-[11px] text-gray-500 truncate">
-                    {sid}
+                    {t.last_message || "Chưa có tin nhắn"}
+                  </div>
+                  <div className="text-[10px] text-gray-400">
+                    {new Date(t.last_message_at).toLocaleString("vi-VN")}
                   </div>
                 </div>
 
@@ -215,7 +151,7 @@ export default function SupportUserList({
           </li>
         )}
 
-        {sessions.length === 0 && (
+        {threads.length === 0 && (
           <li className="p-6 text-gray-400 text-sm italic">
             Chưa có khách hàng nào chat
           </li>

@@ -7,118 +7,101 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    console.log("🔍 GET /api/orders/[id]:", id);
+
+    console.log("[GET /api/orders/[id]] Fetching order:", id);
 
     const supabase = await supabaseServer();
     const {
       data: { user },
-      error: authError,
+      error: userError,
     } = await supabase.auth.getUser();
 
-    if (authError || !user) {
-      console.error("Auth error:", authError);
+    if (userError || !user) {
+      console.error("[GET /api/orders/[id]] Auth error:", userError);
       return NextResponse.json(
-        { success: false, error: "Unauthorized" },
+        { success: false, message: "Unauthorized", data: null },
         { status: 401 }
       );
     }
 
-    // ✅ FIX: Normalize orderCode - Thêm prefix "ORD" nếu là number
-    let orderCode: string;
-
-    if (/^\d+$/.test(id)) {
-      // Case 1: ID là pure number (từ PayOS redirect)
-      orderCode = `ORD${id}`;
-      console.log("  Normalized to:", orderCode);
-    } else if (id.startsWith("ORD")) {
-      // Case 2: ID đã có prefix "ORD"
-      orderCode = id;
-      console.log("  Using orderCode:", orderCode);
-    } else {
-      // Case 3: ID là UUID
-      console.log("  Treating as UUID:", id);
-      const { data, error } = await supabase
-        .from("orders")
-        .select(
-          `
-          *,
-          order_items(
-            *,
-            products(id, name, slug, images)
-          ),
-          discount_codes(id, code, type, percent_off, amount_off)
-        `
-        )
-        .eq("user_id", user.id)
-        .eq("id", id)
-        .maybeSingle();
-
-      if (error) {
-        console.error("Query error (UUID):", error);
-        return NextResponse.json(
-          { success: false, error: error.message },
-          { status: 500 }
-        );
-      }
-
-      if (!data) {
-        return NextResponse.json(
-          { success: false, error: "Order not found" },
-          { status: 404 }
-        );
-      }
-
-      console.log("✅ Order found (UUID):", data.id, data.order_code, data.status);
-      return NextResponse.json({ success: true, data });
-    }
-
-    // ✅ Query by order_code (string with "ORD" prefix)
+    // ✅ FIX: Query by ID (uuid), not order_code
+    // ✅ FIX: Select correct column names: qty, price_at_time
     const { data, error } = await supabase
       .from("orders")
       .select(
         `
-        *,
-        order_items(
-          *,
-          products(id, name, slug, images)
-        ),
-        discount_codes(id, code, type, percent_off, amount_off)
+        id,
+        order_code,
+        created_at,
+        status,
+        total,
+        amount,
+        discount_amount,
+        shipping_address,
+        order_items (
+          id,
+          qty,
+          price_at_time,
+          product:products (
+            id,
+            name,
+            slug,
+            price,
+            images,
+            stock,
+            status
+          )
+        )
       `
       )
-      .eq("user_id", user.id)
-      .eq("order_code", orderCode)
-      .maybeSingle();
+      .eq("id", id) // ✅ Query by UUID
+      .eq("user_id", user.id) // ✅ Security check
+      .maybeSingle(); // ✅ Returns null if not found
 
     if (error) {
-      console.error("Query error (orderCode):", error);
+      console.error("[GET /api/orders/[id]] Supabase error:", error);
       return NextResponse.json(
-        { success: false, error: error.message },
+        { success: false, message: error.message, data: null },
         { status: 500 }
       );
     }
 
     if (!data) {
-      console.log("❌ Order not found for code:", orderCode);
+      console.warn("[GET /api/orders/[id]] Order not found:", id);
       return NextResponse.json(
-        { success: false, error: "Order not found" },
+        { success: false, message: "Order not found", data: null },
         { status: 404 }
       );
     }
 
-    console.log("✅ Order found:", data.id, data.order_code, data.status);
-    return NextResponse.json({ success: true, data });
+    // ✅ Ensure order_items is always an array
+    const responseData = {
+      ...data,
+      order_items: Array.isArray(data.order_items) ? data.order_items : [],
+    };
+
+    console.log("[GET /api/orders/[id]] Success:", {
+      order_id: responseData.id,
+      order_code: responseData.order_code,
+      items_count: responseData.order_items.length,
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: responseData,
+    });
   } catch (error: unknown) {
-    console.error("GET /api/orders/[id] error:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Internal Server Error";
+    console.error("[GET /api/orders/[id]] Exception:", error);
     return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Internal server error",
-      },
+      { success: false, message: errorMessage, data: null },
       { status: 500 }
     );
   }
 }
 
+// PUT and DELETE remain the same...
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -132,6 +115,7 @@ export async function PUT(
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
+      console.error("[PUT /api/orders/[id]] Auth error:", userError);
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
         { status: 401 }
@@ -141,6 +125,12 @@ export async function PUT(
     const { id } = await params;
     const body = await req.json();
     const { status, paid_at } = body;
+
+    console.log("[PUT /api/orders/[id]] Update request:", {
+      id,
+      status,
+      paid_at,
+    });
 
     if (!status) {
       return NextResponse.json(
@@ -156,7 +146,6 @@ export async function PUT(
       "CANCELLED",
       "FAILED",
     ];
-
     if (!validStatuses.includes(status)) {
       return NextResponse.json(
         { success: false, error: "Trạng thái không hợp lệ" },
@@ -164,12 +153,13 @@ export async function PUT(
       );
     }
 
-    const payload: Record<string, unknown> = { status };
+    const payload: Record<string, unknown> = {
+      status,
+    };
+
     if (status === "PAID" && paid_at) {
       payload.paid_at = paid_at;
     }
-
-    console.log("PUT order payload:", payload);
 
     const { data, error } = await supabase
       .from("orders")
@@ -180,19 +170,19 @@ export async function PUT(
       .single();
 
     if (error) {
-      console.error("Supabase PUT order error:", error);
+      console.error("[PUT /api/orders/[id]] Supabase error:", error);
       return NextResponse.json(
         { success: false, error: error.message },
         { status: 400 }
       );
     }
 
-    console.log("PUT order success:", data);
+    console.log("[PUT /api/orders/[id]] Success:", data);
     return NextResponse.json({ success: true, data }, { status: 200 });
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "Internal Server Error";
-    console.error("PUT order error:", error);
+    console.error("[PUT /api/orders/[id]] Exception:", error);
     return NextResponse.json(
       { success: false, error: errorMessage },
       { status: 500 }
@@ -213,6 +203,7 @@ export async function DELETE(
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
+      console.error("[DELETE /api/orders/[id]] Auth error:", userError);
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
         { status: 401 }
@@ -220,7 +211,8 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    console.log("DELETE order id:", id);
+
+    console.log("[DELETE /api/orders/[id]] Delete request:", id);
 
     const { error } = await supabase
       .from("orders")
@@ -229,19 +221,19 @@ export async function DELETE(
       .eq("user_id", user.id);
 
     if (error) {
-      console.error("Supabase DELETE order error:", error);
+      console.error("[DELETE /api/orders/[id]] Supabase error:", error);
       return NextResponse.json(
         { success: false, error: error.message },
         { status: 400 }
       );
     }
 
-    console.log("DELETE order success");
+    console.log("[DELETE /api/orders/[id]] Success");
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "Internal Server Error";
-    console.error("DELETE order error:", error);
+    console.error("[DELETE /api/orders/[id]] Exception:", error);
     return NextResponse.json(
       { success: false, error: errorMessage },
       { status: 500 }
