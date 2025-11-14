@@ -129,6 +129,9 @@ export default function OrdersPage() {
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  const [itemsPage, setItemsPage] = useState(1);
+  const ITEMS_PER_PAGE = 5;
+
   const dateFmt = useMemo(
     () =>
       ({
@@ -166,17 +169,18 @@ export default function OrdersPage() {
     return () => ctrl.abort();
   }, []);
 
-  // ✅ Load order detail - FIX: use /api/orders/[id] instead of ?id=
+  /* =================== Load order detail =================== */
   useEffect(() => {
     if (!openId) return;
     const ctrl = new AbortController();
     setDetail(null);
     setDetailLoading(true);
+    setItemsPage(1); // ✅ reset phân trang khi mở đơn mới
+
     (async () => {
       try {
         console.log("[OrdersPage] Fetching detail for order:", openId);
 
-        // ✅ FIX: Changed from /api/orders?id= to /api/orders/[id]
         const res = await fetch(`/api/orders/${openId}`, {
           signal: ctrl.signal,
           credentials: "include",
@@ -193,7 +197,6 @@ export default function OrdersPage() {
           throw new Error(json.message || "Failed to load detail");
         }
 
-        // ✅ Ensure order_items is array
         const detailData = {
           ...json.data,
           order_items: Array.isArray(json.data?.order_items)
@@ -217,6 +220,29 @@ export default function OrdersPage() {
     })();
     return () => ctrl.abort();
   }, [openId]);
+
+  /* =============== Tính toán dữ liệu phân trang cho order_items =============== */
+  const paginatedItems = useMemo(() => {
+    if (!detail?.order_items || detail.order_items.length === 0) {
+      return { items: [], totalPages: 1, totalItems: 0 };
+    }
+
+    const totalItems = detail.order_items.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE));
+
+    // đảm bảo itemsPage không vượt quá totalPages
+    const currentPage = Math.min(itemsPage, totalPages);
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+
+    return {
+      items: detail.order_items.slice(start, end),
+      totalPages,
+      totalItems,
+      currentPage,
+    };
+  }, [detail, itemsPage]);
+  
 
   /* ======================== screens (loading / error) ======================== */
   if (loading) {
@@ -415,6 +441,7 @@ export default function OrdersPage() {
                 onClick={() => {
                   setOpenId(null);
                   setDetail(null);
+                  setItemsPage(1);
                 }}
                 className="rounded-lg border px-3 py-1.5 text-sm hover:bg-slate-50"
               >
@@ -504,13 +531,11 @@ export default function OrdersPage() {
                           </tr>
                         </thead>
                         <tbody className="bg-white">
-                          {/* ✅ FIX: Added optional chaining */}
-                          {detail.order_items?.map((it) => (
+                          {paginatedItems.items.map((it) => (
                             <tr key={it.id} className="border-t">
                               <td className="p-3">
                                 <div className="flex items-center gap-3">
                                   {firstImage(it.product) ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
                                     <img
                                       src={firstImage(it.product) as string}
                                       alt={it.product?.name ?? ""}
@@ -540,9 +565,55 @@ export default function OrdersPage() {
                               </td>
                             </tr>
                           ))}
+
+                          {paginatedItems.totalItems === 0 && (
+                            <tr>
+                              <td
+                                className="p-4 text-center text-slate-400"
+                                colSpan={4}
+                              >
+                                Không có sản phẩm nào trong đơn
+                              </td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>
+                    {/* ✅ Pagination controls */}
+                    {paginatedItems.totalPages > 1 && (
+                      <div className="flex items-center justify-between px-4 py-3 border-t bg-slate-50 text-xs sm:text-sm">
+                        <span className="text-slate-500">
+                          Trang {paginatedItems.currentPage} /{" "}
+                          {paginatedItems.totalPages} •{" "}
+                          {paginatedItems.totalItems} sản phẩm
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            disabled={paginatedItems.currentPage === 1}
+                            onClick={() =>
+                              setItemsPage((p) => Math.max(1, p - 1))
+                            }
+                            className="px-3 py-1 rounded-lg border bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100"
+                          >
+                            Trước
+                          </button>
+                          <button
+                            disabled={
+                              paginatedItems.currentPage ===
+                              paginatedItems.totalPages
+                            }
+                            onClick={() =>
+                              setItemsPage((p) =>
+                                Math.min(paginatedItems.totalPages, p + 1)
+                              )
+                            }
+                            className="px-3 py-1 rounded-lg border bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100"
+                          >
+                            Sau
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Summary */}
