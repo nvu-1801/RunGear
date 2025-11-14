@@ -164,7 +164,7 @@ export function OrderSummary({
       }
 
       const { orderId, orderCode } = orderResult.data;
-      console.log("Order created:", { orderId, orderCode });
+      console.log("Order created::::", { orderId, orderCode });
 
       // 4. Gọi API tạo payment link
       const paymentRes = await fetch("/api/payments/create", {

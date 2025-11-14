@@ -144,7 +144,7 @@ export default function CartDrawer() {
           {/* Secondary row */}
           <div className="flex items-center justify-between">
             <Link
-              href="/products/home"
+              href="/home"
               className="text-sm text-blue-600 underline hover:text-blue-800 transition"
             >
               Tiếp tục mua sắm
