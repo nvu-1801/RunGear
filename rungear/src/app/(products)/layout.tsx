@@ -4,6 +4,8 @@ import { AuthProvider } from "@/components/auth/AuthContext";
 import SignOutButton from "@/components/auth/SignOutButton";
 import CartButton from "@/components/cart/CartButton";
 import Footer from "@/components/common/Footer";
+import SupportChatBadge from "@/components/support/SupportChatBadge";
+import { getUnreadSupportMessagesCount } from "@/app/actions/support";
 
 export default async function ProductsGroupLayout({
   children,
@@ -24,7 +26,14 @@ export default async function ProductsGroupLayout({
       .eq("id", user.id)
       .single();
     isAdmin = prof?.role === "admin";
+
+    console.log("[Layout] User:", user.id);
+    console.log("[Layout] Is Admin:", isAdmin);
   }
+
+  // ✅ Lấy số tin nhắn chưa đọc cho admin
+  const unreadCount = isAdmin ? await getUnreadSupportMessagesCount() : 0;
+  console.log("[Layout] Unread count for admin:", unreadCount);
 
   return (
     <AuthProvider value={{ user, isAdmin }}>
@@ -33,7 +42,7 @@ export default async function ProductsGroupLayout({
         <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm shadow-sm animate-in slide-in-from-top duration-700">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="h-16 sm:h-20 flex items-center justify-between">
-              {/* Logo - Fade in + scale */}
+              {/* Logo */}
               <Link
                 href="/home"
                 className="flex flex-col leading-tight px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl hover:bg-gray-100 transition-all duration-300 group animate-in fade-in zoom-in-95 duration-700 delay-100"
@@ -46,11 +55,10 @@ export default async function ProductsGroupLayout({
                 </span>
               </Link>
 
-              {/* DESKTOP RIGHT GROUP - Stagger animation */}
+              {/* DESKTOP RIGHT GROUP */}
               <div className="hidden md:flex items-center justify-center gap-8 lg:gap-10 text-sm font-medium text-gray-700">
-                {/* USER DROPDOWN - Hover */}
+                {/* USER DROPDOWN */}
                 <div className="relative group animate-in fade-in slide-in-from-top duration-700 delay-200">
-                  {/* Trigger */}
                   <button
                     type="button"
                     className="flex flex-col items-center cursor-pointer hover:text-blue-600 transition-all duration-300 hover:scale-110 active:scale-95 select-none focus:outline-none"
@@ -71,7 +79,6 @@ export default async function ProductsGroupLayout({
                     <span className="mt-1">Tài khoản</span>
                   </button>
 
-                  {/* Dropdown content - show on hover */}
                   <div
                     className="
                       absolute left-1/2 -translate-x-1/2 top-full mt-1
@@ -147,9 +154,8 @@ export default async function ProductsGroupLayout({
                   </div>
                 </div>
 
-                {/* SUPPORT DROPDOWN - Hover */}
+                {/* SUPPORT DROPDOWN */}
                 <div className="relative group animate-in fade-in slide-in-from-top duration-700 delay-300">
-                  {/* Trigger */}
                   <button
                     type="button"
                     className="flex flex-col items-center cursor-pointer hover:text-blue-600 transition-all duration-300 hover:scale-110 active:scale-95 select-none focus:outline-none"
@@ -202,7 +208,7 @@ export default async function ProductsGroupLayout({
                   </div>
                 </div>
 
-                {/* ✅ ADMIN SUPPORT CHAT BUTTON - Chỉ hiện cho admin */}
+                {/* ✅ ADMIN SUPPORT CHAT BUTTON */}
                 {isAdmin && (
                   <Link
                     href="/admin/support"
@@ -219,8 +225,13 @@ export default async function ProductsGroupLayout({
                       >
                         <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                       </svg>
-                      {/* Badge notification (optional) */}
-                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
+                      {/* ✅ Badge - ALWAYS SHOW if unreadCount > 0 for testing */}
+                      {unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 border-2 border-white animate-pulse">
+                          {unreadCount > 9 ? "9+" : unreadCount}
+                        </span>
+                      )}
+                      <SupportChatBadge initialCount={unreadCount} />
                     </div>
                     <span className="mt-1 select-none">Chat</span>
                   </Link>
@@ -235,7 +246,7 @@ export default async function ProductsGroupLayout({
                 </div>
               </div>
 
-              {/* MOBILE MENU BUTTON - Delay 500ms */}
+              {/* Mobile menu button */}
               <label
                 htmlFor="mobile-menu-toggle"
                 className="md:hidden flex items-center gap-2 p-2 cursor-pointer rounded-lg hover:bg-gray-100 transition-all duration-300 active:scale-95 animate-in fade-in slide-in-from-right duration-700 delay-500"
@@ -255,7 +266,7 @@ export default async function ProductsGroupLayout({
             </div>
           </div>
 
-          {/* MOBILE MENU - Smooth expand */}
+          {/* Mobile menu */}
           <input
             type="checkbox"
             id="mobile-menu-toggle"
@@ -273,7 +284,6 @@ export default async function ProductsGroupLayout({
             <div className="flex flex-col px-6 py-3 space-y-2 text-gray-700 text-sm font-medium">
               {user ? (
                 <>
-                  {/* ADMIN */}
                   {isAdmin ? (
                     <>
                       <Link
@@ -288,23 +298,23 @@ export default async function ProductsGroupLayout({
                       >
                         Manage Products
                       </Link>
-                      {/* ✅ Support Chat for Admin in Mobile */}
                       <Link
                         href="/admin/support"
-                        className="flex items-center gap-2 py-2 hover:text-blue-600 transition-all duration-200 hover:translate-x-1 animate-in fade-in slide-in-from-left duration-500 delay-125"
+                        className="relative flex items-center gap-2 py-2 hover:text-blue-600 transition-all duration-200 hover:translate-x-1 animate-in fade-in slide-in-from-left duration-500 delay-125"
                       >
                         💬 <span>Support Chat</span>
-                        <span className="ml-auto w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                        {unreadCount > 0 && (
+                          <span className="ml-auto min-w-[20px] h-[20px] bg-red-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center px-1.5">
+                            {unreadCount > 9 ? "9+" : unreadCount}
+                          </span>
+                        )}
                       </Link>
                       <hr className="my-2 border-gray-200 animate-in fade-in duration-500" />
                     </>
                   ) : (
-                    <>
-                      <hr className="my-2 border-gray-200 animate-in fade-in duration-500" />
-                    </>
+                    <hr className="my-2 border-gray-200 animate-in fade-in duration-500" />
                   )}
 
-                  {/* SUPPORT */}
                   <span className="uppercase text-xs text-gray-400 tracking-wide animate-in fade-in slide-in-from-left duration-500">
                     Hỗ trợ
                   </span>
@@ -343,12 +353,10 @@ export default async function ProductsGroupLayout({
           </div>
         </header>
 
-        {/* BODY - Fade in + slide up */}
         <main className="flex-1 animate-in fade-in slide-in-from-bottom duration-1000 delay-300">
           {children}
         </main>
 
-        {/* FOOTER - Slide up animation */}
         <div className="animate-in fade-in slide-in-from-bottom duration-1000 delay-500">
           <Footer />
         </div>
