@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { usePathname } from "next/navigation"; // 👈 thêm
 import { supabaseBrowser } from "@/libs/supabase/supabase-client";
 import SupportUserList from "@/components/support/SupportUserList";
 import SupportChatPanel from "@/components/support/SupportChatPanel";
@@ -15,9 +16,11 @@ type Thread = {
 
 export default function AdminSupportPage() {
   const sb = supabaseBrowser();
+  const pathname = usePathname(); // 👈 thêm
+
   const [threads, setThreads] = useState<Thread[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null); // ✅
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadThreads = useCallback(
     async (label: string) => {
@@ -36,13 +39,7 @@ export default function AdminSupportPage() {
         });
 
         if (error) {
-          console.error(
-            "❌ [Admin] support_threads error:",
-            error.message,
-            error.code,
-            error.details,
-            error.hint
-          );
+          console.error("❌ [Admin] support_threads error:", error);
           setLoadError(error.message);
           setThreads([]);
           return;
@@ -66,13 +63,13 @@ export default function AdminSupportPage() {
     [sb]
   );
 
-  // Initial load
+  // 🔹 Mỗi lần vào route này / pathname đổi => reload threads
   useEffect(() => {
-    console.log("🚀 [Admin] First mount, loadThreads(initial)");
-    loadThreads("initial");
-  }, [loadThreads]);
+    console.log("🚀 [Admin] Enter page / pathname changed:", pathname);
+    loadThreads("enter-page");
+  }, [loadThreads, pathname]); // 👈 dùng pathname
 
-  // Realtime
+  // 🔹 Realtime: INSERT vào support_messages => reload
   useEffect(() => {
     console.log("🎧 [Admin] Setting up realtime subscription...");
 

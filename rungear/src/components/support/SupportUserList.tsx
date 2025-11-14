@@ -100,7 +100,7 @@ export default function SupportUserList({
           console.log("[SupportUserList] render item", idx, t);
 
           const active = selectedUserId === t.user_id;
-          const email = t.email ?? "Không có email";
+          const email = t.email ?? "khách";
           const grad = pickGradient(t.user_id);
           const initials = (email || "G").slice(0, 1).toUpperCase();
 
