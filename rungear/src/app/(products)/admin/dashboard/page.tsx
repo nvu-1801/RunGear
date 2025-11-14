@@ -182,6 +182,10 @@ export default function DashboardPage() {
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  const [page, setPage] = useState(0); // trang hiện tại, bắt đầu từ 0
+  const pageSize = 10;
+  const [hasMore, setHasMore] = useState(false);
+
   const dateFmt = useMemo(
     () =>
       ({
@@ -193,6 +197,39 @@ export default function DashboardPage() {
       } as const),
     []
   );
+
+  /* ---------- recent orders via API + pagination ---------- */
+  useEffect(() => {
+    let mounted = true;
+    setOrdersLoading(true);
+
+    const limit = pageSize;
+    const offset = page * pageSize;
+
+    fetchJSON<OrderRow[]>(`/api/admin/orders?limit=${limit}&offset=${offset}`, {
+      timeoutMs: 8000,
+    })
+      .then((rows) => {
+        if (!mounted) return;
+        const arr = rows ?? [];
+        setOrders(arr.map(toVM));
+        // nếu trả về đủ pageSize thì có thể còn trang tiếp theo
+        setHasMore(arr.length === pageSize);
+      })
+      .catch((e) => {
+        if (!mounted) return;
+        console.error("Load orders error:", getMessage(e));
+        setOrders([]);
+        setHasMore(false);
+      })
+      .finally(() => {
+        if (mounted) setOrdersLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [page]);
 
   /* ---------- stats via API ---------- */
   useEffect(() => {
@@ -350,6 +387,9 @@ export default function DashboardPage() {
               <thead>
                 <tr className="bg-blue-50">
                   <th className="p-3 text-left font-semibold text-gray-700">
+                    STT
+                  </th>
+                  <th className="p-3 text-left font-semibold text-gray-700">
                     Mã đơn
                   </th>
                   <th className="p-3 text-left font-semibold text-gray-700">
@@ -368,11 +408,15 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {orders.filter(isOrder).map((o) => (
+                {orders.filter(isOrder).map((o, idx) => (
                   <tr
                     key={o.id}
                     className="border-t hover:bg-blue-50 transition"
                   >
+                    {/* STT */}
+                    <td className="p-3 text-center">
+                      {page * pageSize + idx + 1}
+                    </td>
                     <td className="p-3 font-mono">
                       <button
                         className="text-blue-700 hover:underline"
@@ -411,6 +455,27 @@ export default function DashboardPage() {
                 ))}
               </tbody>
             </table>
+            <div className="mt-4 flex items-center justify-between text-sm text-gray-700">
+              <div>
+                Trang <span className="font-semibold">{page + 1}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={page === 0 || ordersLoading}
+                  className="px-3 py-1.5 rounded-lg border text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-50"
+                >
+                  ← Trước
+                </button>
+                <button
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={!hasMore || ordersLoading}
+                  className="px-3 py-1.5 rounded-lg border text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-50"
+                >
+                  Sau →
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
