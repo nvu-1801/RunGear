@@ -25,7 +25,7 @@ export default function ReturnPage() {
 
     const fetchOnce = async () => {
       try {
-        const res = await fetch(`/api/orders/${orderCode}`, {
+        const res = await fetch(`/api/orders/order_code/${orderCode}`, {
           cache: "no-store",
         });
         const json = await res.json();
