@@ -373,7 +373,7 @@ export default function OrdersPage() {
                       </button>
                       {order.status === "PENDING" && (
                         <Link
-                          href={`/checkout?order=${order.id}`}
+                          href={`/payments?order=${order.id}`}
                           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-semibold"
                         >
                           Thanh toán ngay
