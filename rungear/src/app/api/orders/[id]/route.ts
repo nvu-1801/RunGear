@@ -1,25 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/libs/supabase/supabase-server";
 
-function asOrderCodeNumber(v: unknown): number | null {
-  if (typeof v === "number" && Number.isFinite(v)) return v;
-  if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) {
-    const n = Number(v.trim());
-    if (n > Number.MAX_SAFE_INTEGER || n < Number.MIN_SAFE_INTEGER) {
-      console.warn("order_code exceeds safe integer range:", n);
-      return null;
-    }
-    return n;
-  }
-  return null;
-}
-
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Await params in Next.js 15+
     const { id } = await params;
 
     console.log("[GET /api/orders/[id]] Fetching order:", id);
@@ -33,69 +19,72 @@ export async function GET(
     if (userError || !user) {
       console.error("[GET /api/orders/[id]] Auth error:", userError);
       return NextResponse.json(
-        { success: false, error: "Unauthorized", data: null },
+        { success: false, message: "Unauthorized", data: null },
         { status: 401 }
       );
     }
 
-    const codeNum = asOrderCodeNumber(id);
-    if (codeNum === null) {
-      console.warn("[GET /api/orders/[id]] Invalid order code:", id);
-      return NextResponse.json(
-        { success: false, error: "Invalid order code", data: null },
-        { status: 400 }
-      );
-    }
-
+    // ✅ FIX: Query by ID (uuid), not order_code
+    // ✅ FIX: Select correct column names: qty, price_at_time
     const { data, error } = await supabase
       .from("orders")
       .select(
         `
-        *,
+        id,
+        order_code,
+        created_at,
+        status,
+        total,
+        amount,
+        discount_amount,
+        shipping_address,
         order_items (
           id,
-          product_id,
-          quantity,
-          price,
-          products (
+          qty,
+          price_at_time,
+          product:products (
             id,
             name,
-            image_url
+            slug,
+            price,
+            images,
+            stock,
+            status
           )
         )
       `
       )
-      .eq("user_id", user.id)
-      .eq("order_code", codeNum)
-      .single();
+      .eq("id", id) // ✅ Query by UUID
+      .eq("user_id", user.id) // ✅ Security check
+      .maybeSingle(); // ✅ Returns null if not found
 
     if (error) {
       console.error("[GET /api/orders/[id]] Supabase error:", error);
       return NextResponse.json(
-        { success: false, error: error.message, data: null },
-        { status: 404 }
+        { success: false, message: error.message, data: null },
+        { status: 500 }
       );
     }
 
     if (!data) {
-      console.warn("[GET /api/orders/[id]] Order not found:", codeNum);
+      console.warn("[GET /api/orders/[id]] Order not found:", id);
       return NextResponse.json(
-        { success: false, error: "Order not found", data: null },
+        { success: false, message: "Order not found", data: null },
         { status: 404 }
       );
     }
-
-    console.log("[GET /api/orders/[id]] Success:", {
-      order_id: data.id,
-      order_code: data.order_code,
-      items_count: data.order_items?.length || 0,
-    });
 
     // ✅ Ensure order_items is always an array
     const responseData = {
       ...data,
       order_items: Array.isArray(data.order_items) ? data.order_items : [],
     };
+
+    console.log("[GET /api/orders/[id]] Success:", {
+      order_id: responseData.id,
+      order_code: responseData.order_code,
+      items_count: responseData.order_items.length,
+    });
 
     return NextResponse.json({
       success: true,
@@ -106,12 +95,13 @@ export async function GET(
       error instanceof Error ? error.message : "Internal Server Error";
     console.error("[GET /api/orders/[id]] Exception:", error);
     return NextResponse.json(
-      { success: false, error: errorMessage, data: null },
+      { success: false, message: errorMessage, data: null },
       { status: 500 }
     );
   }
 }
 
+// PUT and DELETE remain the same...
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -119,7 +109,6 @@ export async function PUT(
   try {
     const supabase = await supabaseServer();
 
-    // Get current user
     const {
       data: { user },
       error: userError,
@@ -143,7 +132,6 @@ export async function PUT(
       paid_at,
     });
 
-    // Validate
     if (!status) {
       return NextResponse.json(
         { success: false, error: "Thiếu trạng thái đơn hàng" },
@@ -209,7 +197,6 @@ export async function DELETE(
   try {
     const supabase = await supabaseServer();
 
-    // Get current user
     const {
       data: { user },
       error: userError,

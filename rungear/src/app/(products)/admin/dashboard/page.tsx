@@ -1,8 +1,19 @@
 "use client";
+
 import { useEffect, useMemo, useState } from "react";
+import type {
+  OrderStatus,
+  ProductLite,
+  OrderItem,
+  OrderDetail as OrderDetailShared,
+} from "@/types/order";
 
 /* ================= helpers ================= */
-type Stats = { sold_this_month: number; total_stock: number; skus_in_stock: number };
+type Stats = {
+  sold_this_month: number;
+  total_stock: number;
+  skus_in_stock: number;
+};
 
 function getMessage(err: unknown) {
   if (typeof err === "string") return err;
@@ -30,6 +41,7 @@ async function fetchJSON<T>(
       signal: ctrl.signal,
       ...rest,
     });
+
     const json = await res
       .json()
       .catch(() => ({ success: res.ok, data: null, message: "" }));
@@ -38,6 +50,7 @@ async function fetchJSON<T>(
       const msg = json?.message || `HTTP ${res.status}`;
       throw new Error(msg);
     }
+
     return (json?.data ?? json) as T;
   } finally {
     clearTimeout(t);
@@ -45,12 +58,13 @@ async function fetchJSON<T>(
 }
 
 /* ================= list types ================= */
+
 type OrderRow = {
   id: string;
-  order_code: string;
+  order_code: string | number;
   created_at: string;
   total: string | number;
-  status: string | null;
+  status: OrderStatus | string | null;
   shipping_address: null | {
     full_name?: string | null;
     name?: string | null;
@@ -64,19 +78,23 @@ type OrderVM = {
   order_code: string;
   created_at: string;
   total: number;
-  status: string;
+  status: OrderStatus;
   customer_name: string | null;
 };
 
 function toVM(r: OrderRow): OrderVM {
   const sa = r.shipping_address || {};
-  const name = (sa.full_name ?? sa.name ?? sa.recipient ?? null) ?? null;
+  const name = sa.full_name ?? sa.name ?? sa.recipient ?? null;
+  const normalizedStatus = (r.status ?? "PENDING")
+    .toString()
+    .toUpperCase() as OrderStatus;
+
   return {
     id: r.id,
     order_code: String(r.order_code),
     created_at: r.created_at,
     total: Number(r.total ?? 0),
-    status: (r.status ?? "PENDING").toUpperCase(),
+    status: normalizedStatus,
     customer_name: name,
   };
 }
@@ -93,6 +111,7 @@ function isOrder(v: unknown): v is OrderVM {
 }
 
 /* ================= small UI helpers ================= */
+
 function Money({ v }: { v: number }) {
   return <span>{Number(v || 0).toLocaleString("vi-VN")} ₫</span>;
 }
@@ -107,6 +126,7 @@ function StatusBadge({ value }: { value: string }) {
       : v === "PROCESSING"
       ? "bg-blue-50 text-blue-700 ring-1 ring-blue-200"
       : "bg-amber-50 text-amber-700 ring-1 ring-amber-200";
+
   return (
     <span
       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold ${cls}`}
@@ -133,50 +153,22 @@ function ChevronDownIcon() {
       fill="none"
       stroke="currentColor"
     >
-      <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
+      <path
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6 9l6 6 6-6"
+      />
     </svg>
   );
 }
 
 /* ================= detail types ================= */
-type ProductLite = {
-  id: string;
-  name: string;
-  slug: string;
-  price: number;
-  images: string | string[] | null;
-  stock: number;
-  status: string;
-};
 
-type OrderItem = {
-  id: string;
-  qty: number;
-  price_at_time: number;
-  product: ProductLite | null;
-};
-
-type OrderDetail = {
-  id: string;
-  order_code: string;
-  created_at: string;
-  status: string;
-  total: number;
-  amount: number;
-  discount_amount: number;
-  shipping_address: {
-    full_name?: string | null;
-    phone?: string | null;
-    email?: string | null;
-    address_line?: string | null;
-    district?: string | null;
-    province?: string | null;
-    note?: string | null;
-  } | null;
-  order_items: OrderItem[];
-};
+type OrderDetail = OrderDetailShared;
 
 /* ================= component ================= */
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -198,11 +190,11 @@ export default function DashboardPage() {
         year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
-      }) as const,
+      } as const),
     []
   );
 
-  /* ---------- stats via API (ổn định session/RLS) ---------- */
+  /* ---------- stats via API ---------- */
   useEffect(() => {
     let mounted = true;
     setLoading(true);
@@ -211,7 +203,9 @@ export default function DashboardPage() {
     fetchJSON<Stats>("/api/dashboard", { timeoutMs: 8000 })
       .then((data) => {
         if (!mounted) return;
-        setStats(data ?? { sold_this_month: 0, total_stock: 0, skus_in_stock: 0 });
+        setStats(
+          data ?? { sold_this_month: 0, total_stock: 0, skus_in_stock: 0 }
+        );
       })
       .catch((e) => {
         if (!mounted) return;
@@ -258,21 +252,23 @@ export default function DashboardPage() {
     setDetail(null);
     setDetailLoading(true);
 
-    fetchJSON<any>(`/api/orders?id=${openId}`, { timeoutMs: 8000 })
+    // dùng route /api/orders/[id]
+    fetchJSON<any>(`/api/orders/${openId}`, { timeoutMs: 8000 })
       .then((d) => {
         if (!mounted) return;
+
         const normalized: OrderDetail = {
           id: d.id,
           order_code: String(d.order_code),
           created_at: d.created_at,
-          status: String(d.status ?? "PENDING").toUpperCase(),
+          status: String(d.status ?? "PENDING").toUpperCase() as OrderStatus,
           total: Number(d.total),
           amount: Number(d.amount),
           discount_amount: Number(d.discount_amount ?? 0),
           shipping_address: d.shipping_address ?? null,
-          order_items: (d.order_items ?? []).map((it: any) => {
+          order_items: (d.order_items ?? []).map((it: any): OrderItem => {
             const raw = it.product ?? null;
-            const product: ProductLite | null = !raw ? null : Array.isArray(raw) ? raw[0] ?? null : raw;
+            const product: ProductLite | null = raw ?? null;
             return {
               id: it.id,
               qty: Number(it.qty),
@@ -281,6 +277,7 @@ export default function DashboardPage() {
             };
           }),
         };
+
         setDetail(normalized);
       })
       .catch((e) => {
@@ -298,24 +295,43 @@ export default function DashboardPage() {
   return (
     <div className="p-6 text-gray-800 min-h-dvh bg-gradient-to-br from-blue-50 to-white">
       <h1 className="text-3xl font-bold mb-8 text-blue-800 flex items-center gap-3">
-        <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0h6" />
+        <svg
+          className="w-8 h-8 text-blue-600"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0h6"
+          />
         </svg>
         Dashboard
       </h1>
 
-      {loading && <div className="animate-pulse text-blue-600">Đang tải thống kê…</div>}
-      {/* {err && (
-        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-          {err}
-        </div>
-      )} */}
+      {loading && (
+        <div className="animate-pulse text-blue-600">Đang tải thống kê…</div>
+      )}
 
       {stats && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
-          <Card label="Đã bán tháng này" value={stats.sold_this_month} icon={<CheckIcon />} />
-          <Card label="Tồn kho (số lượng)" value={stats.total_stock} icon={<BoxIcon />} />
-          <Card label="Sản phẩm đang bán" value={stats.skus_in_stock} icon={<CirclePlusIcon />} />
+          <Card
+            label="Đã bán tháng này"
+            value={stats.sold_this_month}
+            icon={<CheckIcon />}
+          />
+          <Card
+            label="Tồn kho (số lượng)"
+            value={stats.total_stock}
+            icon={<BoxIcon />}
+          />
+          <Card
+            label="Sản phẩm đang bán"
+            value={stats.skus_in_stock}
+            icon={<CirclePlusIcon />}
+          />
         </div>
       )}
 
@@ -334,21 +350,35 @@ export default function DashboardPage() {
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="bg-blue-50">
-                  <th className="p-3 text-left font-semibold text-gray-700">Mã đơn</th>
-                  <th className="p-3 text-left font-semibold text-gray-700">Khách hàng</th>
-                  <th className="p-3 text-left font-semibold text-gray-700">Ngày tạo</th>
-                  <th className="p-3 text-left font-semibold text-gray-700">Tổng tiền</th>
-                  <th className="p-3 text-left font-semibold text-gray-700">Trạng thái</th>
-                  <th className="p-3"></th>
+                  <th className="p-3 text-left font-semibold text-gray-700">
+                    Mã đơn
+                  </th>
+                  <th className="p-3 text-left font-semibold text-gray-700">
+                    Khách hàng
+                  </th>
+                  <th className="p-3 text-left font-semibold text-gray-700">
+                    Ngày tạo
+                  </th>
+                  <th className="p-3 text-left font-semibold text-gray-700">
+                    Tổng tiền
+                  </th>
+                  <th className="p-3 text-left font-semibold text-gray-700">
+                    Trạng thái
+                  </th>
+                  <th className="p-3" />
                 </tr>
               </thead>
               <tbody>
                 {orders.filter(isOrder).map((o) => {
-                  const status = o.status?.toUpperCase?.() ?? "PENDING";
+                  const status = o.status;
                   const isPaid = status === "PAID";
-                  const isCancel = status === "CANCEL" || status === "CANCELLED";
+                  const isCancel = status === "CANCELLED";
+
                   return (
-                    <tr key={o.id} className="border-t hover:bg-blue-50 transition">
+                    <tr
+                      key={o.id}
+                      className="border-t hover:bg-blue-50 transition"
+                    >
                       <td className="p-3 font-mono">
                         <button
                           className="text-blue-700 hover:underline"
@@ -359,9 +389,16 @@ export default function DashboardPage() {
                         </button>
                       </td>
                       <td className="p-3">
-                        {o.customer_name || <span className="text-gray-400">Khách lẻ</span>}
+                        {o.customer_name || (
+                          <span className="text-gray-400">Khách lẻ</span>
+                        )}
                       </td>
-                      <td className="p-3">{new Date(o.created_at).toLocaleString("vi-VN", dateFmt as any)}</td>
+                      <td className="p-3">
+                        {new Date(o.created_at).toLocaleString(
+                          "vi-VN",
+                          dateFmt as any
+                        )}
+                      </td>
                       <td className="p-3 font-semibold text-blue-700">
                         {Number(o.total).toLocaleString("vi-VN")} ₫
                       </td>
@@ -406,8 +443,9 @@ export default function DashboardPage() {
           loading={detailLoading}
           detail={detail}
           onStatusUpdated={(s) => {
-            // sync lại badge trong bảng nếu đang hiển thị đơn đó
-            setOrders((prev) => prev.map((x) => (x.id === openId ? { ...x, status: s } : x)));
+            setOrders((prev) =>
+              prev.map((x) => (x.id === openId ? { ...x, status: s } : x))
+            );
           }}
         />
       )}
@@ -416,24 +454,57 @@ export default function DashboardPage() {
 }
 
 /* ================= icons ================= */
+
 function CheckIcon() {
   return (
-    <svg className="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 17l6-6 4 4 8-8" />
+    <svg
+      className="w-8 h-8 text-emerald-500"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 17l6-6 4 4 8-8"
+      />
     </svg>
   );
 }
+
 function BoxIcon() {
   return (
-    <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v2a2 2 0 002 2h2a2 2 0 002-2v-2" />
+    <svg
+      className="w-8 h-8 text-blue-500"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9 17v2a2 2 0 002 2h2a2 2 0 002-2v-2"
+      />
     </svg>
   );
 }
+
 function CirclePlusIcon() {
   return (
-    <svg className="w-8 h-8 text-yellow-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+    <svg
+      className="w-8 h-8 text-yellow-500"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      viewBox="0 0 24 24"
+    >
       <circle cx="12" cy="12" r="10" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h8M12 8v8" />
     </svg>
@@ -442,13 +513,24 @@ function CirclePlusIcon() {
 
 function ListIcon() {
   return (
-    <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M3 12h18M3 17h18" />
+    <svg
+      className="w-6 h-6 text-blue-500"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 7h18M3 12h18M3 17h18"
+      />
     </svg>
   );
 }
 
 /* ================= presentational ================= */
+
 function Card({
   label,
   value,
@@ -468,6 +550,7 @@ function Card({
 }
 
 /* ================= modal ================= */
+
 function OrderDetailModal({
   open,
   onClose,
@@ -479,34 +562,35 @@ function OrderDetailModal({
   onClose: () => void;
   loading: boolean;
   detail: OrderDetail | null;
-  onStatusUpdated?: (next: string) => void;
+  onStatusUpdated?: (next: OrderStatus) => void;
 }) {
-  if (!open) return null;
-
   const [saving, setSaving] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
-  type Allowed = (typeof STATUS_OPTIONS)[number]["v"];
+  if (!open) return null;
 
+  type Allowed = (typeof STATUS_OPTIONS)[number]["v"];
   async function updateStatus(next: Allowed) {
     if (!detail || saving) return;
     setSaving(true);
     setErrMsg(null);
+
     const prev = detail.status;
 
     try {
-      // optimistic
+      // optimistic update
       (detail as any).status = next;
 
-      await fetchJSON(`/api/orders`, {
-        method: "PATCH",
+      await fetchJSON(`/api/orders/${detail.id}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: detail.id, status: next }),
+        body: JSON.stringify({ status: next }), // PUT handler mong { status, paid_at? }
         timeoutMs: 8000,
       });
 
-      onStatusUpdated?.(next);
+      onStatusUpdated?.(next as OrderStatus);
     } catch (e) {
+      // rollback nếu fail
       (detail as any).status = prev;
       setErrMsg(getMessage(e));
     } finally {
@@ -559,7 +643,10 @@ function OrderDetailModal({
           <div className="flex flex-col">
             <div className="flex items-center gap-3">
               <h3 className="text-lg font-semibold text-slate-800">
-                Đơn hàng <span className="font-mono text-blue-700">{detail?.order_code ?? ""}</span>
+                Đơn hàng{" "}
+                <span className="font-mono text-blue-700">
+                  {detail?.order_code ?? ""}
+                </span>
               </h3>
               {detail && <StatusBadge value={detail.status} />}
             </div>
@@ -579,7 +666,10 @@ function OrderDetailModal({
                 Sao chép mã
               </button>
             )}
-            <button onClick={onClose} className="rounded-lg border px-3 py-1.5 text-sm hover:bg-slate-50">
+            <button
+              onClick={onClose}
+              className="rounded-lg border px-3 py-1.5 text-sm hover:bg-slate-50"
+            >
               Đóng
             </button>
           </div>
@@ -588,7 +678,9 @@ function OrderDetailModal({
         {/* Body */}
         <div className="max-h-[72vh] overflow-auto px-5 py-4">
           {loading || !detail ? (
-            <div className="animate-pulse text-blue-600">Đang tải chi tiết…</div>
+            <div className="animate-pulse text-blue-600">
+              Đang tải chi tiết…
+            </div>
           ) : (
             <>
               {errMsg && (
@@ -600,12 +692,15 @@ function OrderDetailModal({
               {/* Top info cards */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="rounded-xl border bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Khách hàng</p>
+                  <p className="text-xs uppercase tracking-wide text-slate-500">
+                    Khách hàng
+                  </p>
                   <p className="mt-1 font-medium text-slate-800">
                     {detail.shipping_address?.full_name ?? "Khách lẻ"}
                   </p>
                   <p className="mt-1 text-sm text-slate-600">
-                    {detail.shipping_address?.phone} • {detail.shipping_address?.email}
+                    {detail.shipping_address?.phone} •{" "}
+                    {detail.shipping_address?.email}
                   </p>
                   <p className="mt-1 text-sm text-slate-600">
                     {[
@@ -619,10 +714,18 @@ function OrderDetailModal({
                 </div>
 
                 <div className="rounded-xl border bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Trạng thái</p>
+                  <p className="text-xs uppercase tracking-wide text-slate-500">
+                    Trạng thái
+                  </p>
                   <div className="mt-1 flex items-center gap-2">
-                    <StatusSelect value={detail.status} onChange={updateStatus} disabled={saving} />
-                    {saving && <span className="text-xs text-blue-600">Đang lưu…</span>}
+                    <StatusSelect
+                      value={detail.status}
+                      onChange={updateStatus}
+                      disabled={saving}
+                    />
+                    {saving && (
+                      <span className="text-xs text-blue-600">Đang lưu…</span>
+                    )}
                   </div>
 
                   <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
@@ -672,8 +775,12 @@ function OrderDetailModal({
                                 <div className="size-12 rounded-xl bg-slate-100 ring-1 ring-slate-200" />
                               )}
                               <div>
-                                <p className="font-medium text-slate-800">{it.product?.name}</p>
-                                <p className="text-xs text-slate-500">{it.product?.slug}</p>
+                                <p className="font-medium text-slate-800">
+                                  {it.product?.name}
+                                </p>
+                                <p className="text-xs text-slate-500">
+                                  {it.product?.slug}
+                                </p>
                               </div>
                             </div>
                           </td>
