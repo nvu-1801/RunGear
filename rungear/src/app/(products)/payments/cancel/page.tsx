@@ -22,9 +22,13 @@ export default function CancelPage() {
 
     (async () => {
       try {
-        const res = await fetch(`/api/orders/${orderCode}`, {
-          cache: "no-store",
-        });
+        // 🔁 Dùng by-code, không dùng /api/orders/[id] nữa
+        const res = await fetch(
+          `/api/orders/by-code?code=${encodeURIComponent(orderCode)}`,
+          {
+            cache: "no-store",
+          }
+        );
         const json = await res.json();
 
         if (json?.success && json?.data) {
@@ -184,7 +188,11 @@ export default function CancelPage() {
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-4 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-500">
           <Link
-            href={`/payments?order=${orderCode}`}
+            href={
+              orderCode && orderCode !== "N/A"
+                ? `/payments?order=${encodeURIComponent(orderCode)}`
+                : "/payments"
+            }
             className="group flex-1 inline-flex items-center justify-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-orange-500 via-red-500 to-rose-500 text-white font-bold text-lg hover:from-orange-600 hover:via-red-600 hover:to-rose-600 transition-all duration-300 shadow-xl hover:shadow-2xl hover:shadow-red-500/50 hover:scale-105 active:scale-95 relative overflow-hidden"
           >
             <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></span>
