@@ -12,7 +12,12 @@ async function assertAdmin() {
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
-    return { supabase, user: null, isAdmin: false, error: "Unauthorized" as const };
+    return {
+      supabase,
+      user: null,
+      isAdmin: false,
+      error: "Unauthorized" as const,
+    };
   }
 
   // TODO: nếu bạn dùng profile.role = 'admin' thì có thể query thêm bảng profiles ở đây
@@ -124,12 +129,13 @@ export async function GET(
 }
 
 /* ============ PUT /api/admin/orders/[id] ============ */
+/* ============ PUT /api/admin/orders/[id] ============ */
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } } // không cần Promise cũng được
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const { supabase, isAdmin, error } = await assertAdmin();
 
     if (error === "Unauthorized") {
