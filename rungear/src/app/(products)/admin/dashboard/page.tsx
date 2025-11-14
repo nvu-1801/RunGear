@@ -346,31 +346,7 @@ export default function DashboardPage() {
         </svg>
         Dashboard
       </h1>
-
-      {loading && (
-        <div className="animate-pulse text-blue-600">Đang tải thống kê…</div>
-      )}
-
-      {stats && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
-          <Card
-            label="Đã bán tháng này"
-            value={stats.sold_this_month}
-            icon={<CheckIcon />}
-          />
-          <Card
-            label="Tồn kho (số lượng)"
-            value={stats.total_stock}
-            icon={<BoxIcon />}
-          />
-          <Card
-            label="Sản phẩm đang bán"
-            value={stats.skus_in_stock}
-            icon={<CirclePlusIcon />}
-          />
-        </div>
-      )}
-
+    
       {/* Đơn hàng gần đây */}
       <div className="bg-white rounded-2xl shadow border p-6 mt-8">
         <h2 className="text-xl font-semibold mb-4 text-gray-800 flex items-center gap-2">

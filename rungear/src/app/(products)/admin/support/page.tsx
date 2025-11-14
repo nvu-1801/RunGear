@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { usePathname } from "next/navigation"; // 👈 thêm
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { supabaseBrowser } from "@/libs/supabase/supabase-client";
 import SupportUserList from "@/components/support/SupportUserList";
 import SupportChatPanel from "@/components/support/SupportChatPanel";
@@ -15,21 +14,25 @@ type Thread = {
 };
 
 export default function AdminSupportPage() {
-  const sb = supabaseBrowser();
-  const pathname = usePathname(); // 👈 thêm
+  // tạo supabase client 1 lần
+  const sb = useMemo(() => supabaseBrowser(), []);
 
   const [threads, setThreads] = useState<Thread[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadThreads = useCallback(
     async (label: string) => {
       console.log(`🔄 [Admin] Loading threads (${label})...`);
+      setLoading(true);
 
       try {
         const { data, error } = await sb
           .from("support_threads")
-          .select("*")
+          .select(
+            "user_id, email, full_name, last_message, last_message_at" // 👈 chỉ select cột cần
+          )
           .order("last_message_at", { ascending: false });
 
         console.log("👀 [Admin] View support_threads result:", {
@@ -58,16 +61,18 @@ export default function AdminSupportPage() {
         console.error("❌ [Admin] Exception in loadThreads:", e);
         setLoadError(e instanceof Error ? e.message : "Unknown error");
         setThreads([]);
+      } finally {
+        setLoading(false);
       }
     },
     [sb]
   );
 
-  // 🔹 Mỗi lần vào route này / pathname đổi => reload threads
+  // 🔹 Load threads khi trang mount
   useEffect(() => {
-    console.log("🚀 [Admin] Enter page / pathname changed:", pathname);
+    console.log("🚀 [Admin] Enter page");
     loadThreads("enter-page");
-  }, [loadThreads, pathname]); // 👈 dùng pathname
+  }, [loadThreads]);
 
   // 🔹 Realtime: INSERT vào support_messages => reload
   useEffect(() => {
@@ -155,17 +160,25 @@ export default function AdminSupportPage() {
 
   return (
     <div className="flex h-[75vh] mt-8 max-w-7xl mx-auto px-4 border rounded-lg overflow-hidden shadow-lg bg-white min-h-0">
+      {/* Sidebar threads */}
       <div className="w-1/3 border-r bg-gray-50">
-        <SupportUserList
-          threads={threads}
-          selectedUserId={selectedUserId}
-          onSelect={(id) => {
-            console.log("👉 [Admin] Selected user:", id);
-            setSelectedUserId(id);
-          }}
-        />
+        {loading ? (
+          <div className="h-full flex items-center justify-center text-gray-400 text-sm">
+            Đang tải danh sách chat...
+          </div>
+        ) : (
+          <SupportUserList
+            threads={threads}
+            selectedUserId={selectedUserId}
+            onSelect={(id) => {
+              console.log("👉 [Admin] Selected user:", id);
+              setSelectedUserId(id);
+            }}
+          />
+        )}
       </div>
 
+      {/* Panel chat */}
       <div className="flex-1 min-h-0">
         {selectedUserId ? (
           <SupportChatPanel key={selectedUserId} userId={selectedUserId} />
