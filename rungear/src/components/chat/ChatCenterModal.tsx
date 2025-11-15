@@ -8,7 +8,10 @@ import SupportChat from "./SupportChat";
 function HeaderIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" {...props}>
-      <path d="M12 2l1.9 5.7H20l-4.6 3.4L17.4 17 12 13.9 6.6 17l2-5.9L4 7.7h6.1L12 2z" fill="currentColor" />
+      <path
+        d="M12 2l1.9 5.7H20l-4.6 3.4L17.4 17 12 13.9 6.6 17l2-5.9L4 7.7h6.1L12 2z"
+        fill="currentColor"
+      />
     </svg>
   );
 }
@@ -51,7 +54,10 @@ export default function ChatCenterModal({
       aria-label="Chat Center"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px]" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/55 backdrop-blur-[2px]"
+        onClick={onClose}
+      />
 
       {/* Card */}
       <div
@@ -70,7 +76,9 @@ export default function ChatCenterModal({
               </div>
               <div>
                 <div className="font-semibold leading-tight">Chat Center</div>
-                <div className="text-xs text-gray-500">RunGear AI • Hỗ trợ khách hàng</div>
+                <div className="text-xs text-gray-500">
+                  RunGear AI • Hỗ trợ khách hàng
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -85,7 +93,13 @@ export default function ChatCenterModal({
                 className="h-9 w-9 grid place-items-center rounded-lg hover:bg-gray-100"
                 aria-label="Close"
               >
-                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <path d="M6 6l12 12M18 6L6 18" />
                 </svg>
               </button>
@@ -103,7 +117,9 @@ export default function ChatCenterModal({
               <div
                 className={[
                   "absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-xl bg-white shadow ring-1 ring-black/5 transition-transform duration-300 ease-out",
-                  tab === "support" ? "translate-x-[calc(100%+8px)]" : "translate-x-1",
+                  tab === "support"
+                    ? "translate-x-[calc(100%+8px)]"
+                    : "translate-x-1",
                 ].join(" ")}
                 aria-hidden="true"
               />
@@ -116,7 +132,9 @@ export default function ChatCenterModal({
                   onClick={() => setTab("ai")}
                   className={[
                     "z-10 inline-flex items-center justify-center gap-2 rounded-xl px-3 py-1.5 text-sm transition-colors",
-                    tab === "ai" ? "text-indigo-700 font-semibold" : "text-gray-600 hover:text-gray-800",
+                    tab === "ai"
+                      ? "text-indigo-700 font-semibold"
+                      : "text-gray-600 hover:text-gray-800",
                   ].join(" ")}
                 >
                   <span className="inline-block h-2 w-2 rounded-full bg-indigo-600/70" />
@@ -130,7 +148,9 @@ export default function ChatCenterModal({
                   onClick={() => setTab("support")}
                   className={[
                     "z-10 inline-flex items-center justify-center gap-2 rounded-xl px-3 py-1.5 text-sm transition-colors",
-                    tab === "support" ? "text-indigo-700 font-semibold" : "text-gray-600 hover:text-gray-800",
+                    tab === "support"
+                      ? "text-indigo-700 font-semibold"
+                      : "text-gray-600 hover:text-gray-800",
                   ].join(" ")}
                 >
                   <span className="inline-block h-2 w-2 rounded-full bg-emerald-600/70" />
@@ -141,8 +161,13 @@ export default function ChatCenterModal({
 
             {/* Mô tả ngắn dưới Tabs để định hướng người dùng */}
             <p className="mt-2 text-xs text-gray-500">
-              Chọn <span className="font-medium">RunGear AI</span> để hỏi đáp tự động, hoặc{" "}
-              <span className="font-medium">Hỗ trợ khách hàng</span> để trò chuyện với nhân viên.
+              Chọn <span className="font-medium">RunGear AI</span> để hỏi đáp tự
+              động, hoặc <span className="font-medium">Hỗ trợ khách hàng</span>{" "}
+              để trò chuyện với nhân viên.
+            </p>
+            <p className="mt-2 text-xs text-gray-500">
+              Có vấn đề gì xin liên hệ Zalo:{" "}
+              <span className="font-medium">0343628287</span>
             </p>
           </div>
 
