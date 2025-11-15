@@ -35,8 +35,11 @@ export default async function ProductsGroupLayout({
   const unreadCount = isAdmin ? await getUnreadSupportMessagesCount() : 0;
   console.log("[Layout] Unread count for admin:", unreadCount);
 
+  console.log("[Layout] User:", user?.id); // Đã có
+console.log("[Layout] Is Admin:", isAdmin); // Đã có
+
   return (
-    <AuthProvider value={{ user, isAdmin }}>
+    <AuthProvider value={{ user, isAdmin, isLoading: false }}>
       <div className="min-h-dvh flex flex-col bg-white">
         {/* HEADER - Slide down animation */}
         <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm shadow-sm animate-in slide-in-from-top duration-700">
