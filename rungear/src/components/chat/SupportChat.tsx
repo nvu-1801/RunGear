@@ -22,6 +22,8 @@ type ChatMessage = {
   createdAt: string;
 };
 
+// ... (Hàm isValidSessionId và useChatSession giữ nguyên) ...
+
 function isValidSessionId(s: unknown): s is string {
   if (typeof s !== "string") return false;
   return /^[A-Za-z0-9\-_:.]+$/.test(s) && s.length > 5;
@@ -64,96 +66,59 @@ export default function SupportChat() {
   const sb = supabaseBrowser();
   const sid = useChatSession();
 
+  // ✅ 1. Lấy thông tin từ Context (FIX LỖI CHẬM)
+  const { user, isAdmin, isLoading } = useAuth();
+  const currentUserId = useMemo(() => user?.id ?? null, [user]);
+  const username = useMemo(() => user?.email ?? "Guest", [user]);
+  // authError chỉ true khi auth đã resolve và user === null
+  const authError = useMemo(() => !isLoading && !user, [isLoading, user]);
+
   const [initial, setInitial] = useState<ChatMessage[]>([]);
-  const [username, setUsername] = useState<string>("Guest");
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [authChecking, setAuthChecking] = useState(true);
-  const [authError, setAuthError] = useState(false);
+
+  // ✅ 1. Xoá các state check auth rườm rà
+  // const [username, setUsername] = useState<string>("Guest");
+  // const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  // const [authChecking, setAuthChecking] = useState(true);
+  // const [authError, setAuthError] = useState(false);
 
   const lastSentRef = useRef<{ sig: string } | null>(null);
   const sendingRef = useRef(false);
 
-  // ✅ roomName ưu tiên user_id, fallback session
   const roomName = useMemo(() => {
     if (currentUserId) return `support:user:${currentUserId}`;
-    if (sid) return `support:session:${sid}`;
+    if (sid) return `support:session:${sid}`; // Fallback cho user chưa login (nếu có)
     return undefined;
   }, [currentUserId, sid]);
 
-  // ✅ Load user info với error handling
+  // ✅ 1. Xoá useEffect check auth (sb.auth.getUser)
+
+  // ✅ 2. Load lịch sử TỪ API ROUTE
   useEffect(() => {
-    (async () => {
-      try {
-        setAuthChecking(true);
-        const { data, error } = await sb.auth.getUser();
-
-        if (error) {
-          console.error("[SupportChat] auth.getUser error:", error);
-          // AuthSessionMissingError = chưa login
-          if (error.message.includes("Auth session missing")) {
-            setAuthError(true);
-          }
-          setAuthChecking(false);
-          return;
-        }
-
-        console.log("[SupportChat] Loaded user info:", data);
-
-        if (data?.user) {
-          if (data.user.email) setUsername(data.user.email);
-          if (data.user.id) setCurrentUserId(data.user.id);
-          setAuthError(false);
-        } else {
-          // Không có user = chưa login
-          setAuthError(true);
-        }
-
-        setAuthChecking(false);
-      } catch (e) {
-        console.error("[SupportChat] getUser exception:", e);
-        setAuthError(true);
-        setAuthChecking(false);
-      }
-    })();
-  }, [sb]);
-
-  // ✅ Load lịch sử: ưu tiên user_id, fallback session_id
-  useEffect(() => {
-    if (!sid && !currentUserId) return;
+    // Chỉ load khi đã đăng nhập (vì API route yêu cầu auth)
+    if (!currentUserId) {
+      setInitial([]); // Đảm bảo clear lịch sử nếu logout
+      return;
+    }
     let mounted = true;
 
     (async () => {
       try {
-        let query = sb
-          .from("support_messages")
-          .select("id, session_id, user_id, role, text, created_at")
-          .order("created_at", { ascending: true });
-
-        if (currentUserId) {
-          query = query.eq("user_id", currentUserId);
-        } else if (sid) {
-          query = query.eq("session_id", sid);
-        } else {
-          return;
+        const res = await fetch("/api/support/history");
+        if (!res.ok) {
+          throw new Error(`API request failed with status ${res.status}`);
         }
 
-        const { data, error } = await query;
+        const data: DBMsg[] = await res.json();
+        if (!mounted || !Array.isArray(data)) return;
 
-        if (!mounted || error || !Array.isArray(data)) {
-          if (error) {
-            console.error("[SupportChat] load history error:", error);
-          }
-          setInitial([]);
-          return;
-        }
+        const mapped = data.map((m) => {
+          const isMine = m.user_id === currentUserId;
 
-        const mapped = (data as DBMsg[]).map((m) => {
-          const isMine =
-            (m.user_id && currentUserId && m.user_id === currentUserId) ||
-            (!currentUserId && m.session_id && sid && m.session_id === sid);
-
+          // Sửa logic tên: Dùng context `isAdmin` để biết mình là admin hay user
           const name = isMine
-            ? username ?? "You"
+            ? isAdmin
+              ? "Support (Admin)"
+              : username ?? "You"
             : m.role === "admin"
             ? "Support"
             : "User";
@@ -168,7 +133,7 @@ export default function SupportChat() {
 
         setInitial(mapped);
       } catch (e) {
-        console.error("[SupportChat] load history exception:", e);
+        console.error("[SupportChat] load history from API error:", e);
         if (mounted) setInitial([]);
       }
     })();
@@ -176,9 +141,9 @@ export default function SupportChat() {
     return () => {
       mounted = false;
     };
-  }, [sb, sid, currentUserId, username]);
+  }, [currentUserId, username, isAdmin]); // Phụ thuộc vào state từ context
 
-  // ✅ handleMessage: chỉ lưu nếu đã login
+  // ✅ 3. handleMessage vẫn dùng supabaseBrowser để INSERT (vì cần real-time)
   const handleMessage = useCallback(
     async (next: ChatMessage[]) => {
       if (!roomName) {
@@ -186,7 +151,11 @@ export default function SupportChat() {
         return;
       }
 
-      // ✅ Check auth trước khi gửi
+      // Check auth (lấy từ context). Nếu auth chưa sẵn sàng, skip.
+      if (isLoading) {
+        console.warn("[SupportChat] Auth still loading, skip save to DB");
+        return;
+      }
       if (authError) {
         console.warn("[SupportChat] Not authenticated, skip save to DB");
         return;
@@ -196,39 +165,30 @@ export default function SupportChat() {
       if (!last) return;
 
       const sig = last.id;
-
-      const lastEntry = lastSentRef.current;
-      if (lastEntry && lastEntry.sig === sig) {
+      if (lastSentRef.current && lastSentRef.current.sig === sig) {
         console.log("[SupportChat] Duplicate same message id, skip");
         return;
       }
-
       if (sendingRef.current) {
         console.log("[SupportChat] Already sending, skip");
         return;
       }
+
       sendingRef.current = true;
 
       try {
-        const {
-          data: { user },
-          error: userErr,
-        } = await sb.auth.getUser();
-
-        if (userErr || !user?.id) {
+        // ✅ 3. Dùng `user` từ context, không gọi sb.auth.getUser()
+        if (!user?.id) {
           console.error("[SupportChat] Cannot send: user not authenticated");
-          sendingRef.current = false;
           return;
         }
-
-        console.log("[SupportChat] Sending message as user:", user.id);
 
         const { data, error } = await sb
           .from("support_messages")
           .insert({
             session_id: sid ?? null,
-            user_id: user.id,
-            role: "user",
+            user_id: user.id, // Dùng user.id từ context
+            role: isAdmin ? "admin" : "user", // Dùng `isAdmin` từ context
             text: last.content,
           })
           .select("id");
@@ -245,23 +205,15 @@ export default function SupportChat() {
         sendingRef.current = false;
       }
     },
-    [sb, sid, roomName, authError]
+    [sb, sid, roomName, authError, user, isAdmin] // Dùng state từ context
   );
 
-  // ✅ Loading state
-  if (authChecking) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-sm text-gray-500">Đang kiểm tra đăng nhập...</p>
-        </div>
-      </div>
-    );
-  }
+  // ✅ 1. Xoá Loading state (vì authChecking đã bị xoá)
+  // if (authChecking) { ... }
 
   // ✅ Not logged in - Show login prompt
-  if (authError) {
+  // Nếu auth vẫn đang tải, hiển thị placeholder/loader thay vì prompt
+  if (!isLoading && authError) {
     return (
       <div className="h-full flex items-center justify-center p-4">
         <div className="rounded-2xl border bg-white p-10 text-center shadow-lg max-w-md">
