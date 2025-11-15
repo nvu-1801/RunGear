@@ -188,31 +188,6 @@ export default function CancelPage() {
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-4 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-500">
           <Link
-            href={
-              orderCode && orderCode !== "N/A"
-                ? `/payments?order=${encodeURIComponent(orderCode)}`
-                : "/payments"
-            }
-            className="group flex-1 inline-flex items-center justify-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-orange-500 via-red-500 to-rose-500 text-white font-bold text-lg hover:from-orange-600 hover:via-red-600 hover:to-rose-600 transition-all duration-300 shadow-xl hover:shadow-2xl hover:shadow-red-500/50 hover:scale-105 active:scale-95 relative overflow-hidden"
-          >
-            <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></span>
-            <svg
-              className="w-6 h-6 relative z-10 transform group-hover:rotate-180 transition-transform duration-500"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2.5}
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-            <span className="relative z-10">Thử lại thanh toán</span>
-          </Link>
-
-          <Link
             href="/home"
             className="flex-1 inline-flex items-center justify-center gap-3 px-8 py-4 rounded-2xl bg-white text-gray-700 font-bold text-lg hover:bg-gray-50 border-2 border-gray-300 transition-all duration-300 hover:border-gray-400 hover:shadow-lg hover:scale-105 active:scale-95"
           >
