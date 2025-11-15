@@ -38,19 +38,6 @@ export function ShippingAndPaymentMethod({
               {" • "}2–4 ngày
             </div>
           </button>
-          <button
-            onClick={() => onShippingChange("fast")}
-            className={`rounded-xl border px-4 py-4 text-left transition font-medium ${
-              shipping === "fast"
-                ? "ring-2 ring-blue-400 bg-blue-50 border-blue-400 text-blue-700"
-                : "hover:bg-blue-50 hover:border-blue-300"
-            }`}
-          >
-            <div>Nhanh</div>
-            <div className="text-sm text-gray-500">
-              {formatPriceVND(35000)} • 24–48h
-            </div>
-          </button>
         </div>
       </div>
 
@@ -60,19 +47,8 @@ export function ShippingAndPaymentMethod({
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <label className="rounded-xl border px-4 py-4 flex items-center gap-2 text-gray-700 cursor-pointer font-medium transition hover:bg-blue-50 hover:border-blue-300">
-            <input
-              name="pm"
-              type="radio"
-              defaultChecked
-              className="accent-blue-600"
-            />{" "}
-            COD
-          </label>
-          <label className="rounded-xl border px-4 py-4 flex items-center gap-2 text-gray-700 cursor-pointer font-medium transition hover:bg-blue-50 hover:border-blue-300">
-            <input name="pm" type="radio" className="accent-blue-600" /> Momo/VietQR
-          </label>
-          <label className="rounded-xl border px-4 py-4 flex items-center gap-2 text-gray-700 cursor-pointer font-medium transition hover:bg-blue-50 hover:border-blue-300">
-            <input name="pm" type="radio" className="accent-blue-600" /> Thẻ nội địa
+            <input name="pm" type="radio" className="accent-blue-600" />{" "}
+            Momo/VietQR
           </label>
         </div>
       </div>
