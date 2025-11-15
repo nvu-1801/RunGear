@@ -7,9 +7,9 @@ import Link from "next/link";
 function formatAIResponse(text: string): React.ReactNode {
   if (!text) return null;
 
-  const lines = text.split('\n');
+  const lines = text.split("\n");
   const elements: React.ReactNode[] = [];
-    
+
   lines.forEach((line, index) => {
     let processedLine = line;
     const boldRegex = /\*\*(.+?)\*\*/g;
@@ -22,19 +22,22 @@ function formatAIResponse(text: string): React.ReactNode {
         parts.push(line.substring(lastIndex, match.index));
       }
       parts.push(
-        <strong key={`bold-${index}-${match.index}`} className="font-bold text-gray-900">
+        <strong
+          key={`bold-${index}-${match.index}`}
+          className="font-bold text-gray-900"
+        >
           {match[1]}
         </strong>
       );
       lastIndex = match.index + match[0].length;
     }
-    
+
     if (lastIndex < line.length) {
       parts.push(line.substring(lastIndex));
     }
 
     const formattedParts = parts.map((part, partIndex) => {
-      if (typeof part !== 'string') return part;
+      if (typeof part !== "string") return part;
 
       const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
       const linkParts: React.ReactNode[] = [];
@@ -48,15 +51,15 @@ function formatAIResponse(text: string): React.ReactNode {
 
         const linkText = linkMatch[1];
         const linkUrl = linkMatch[2];
-        const isInternal = linkUrl.startsWith('/');
+        const isInternal = linkUrl.startsWith("/");
 
         linkParts.push(
           isInternal ? (
             <Link
               key={`link-${index}-${partIndex}-${linkMatch.index}`}
               href={linkUrl}
-              target="_blank"  // ← THÊM: Mở tab mới
-              rel="noopener noreferrer"  // ← THÊM: Security
+              target="_blank" // ← THÊM: Mở tab mới
+              rel="noopener noreferrer" // ← THÊM: Security
               className="text-indigo-600 underline hover:text-indigo-800 font-semibold"
             >
               {linkText}
@@ -86,11 +89,14 @@ function formatAIResponse(text: string): React.ReactNode {
 
     if (formattedParts.length > 0) {
       elements.push(
-        <p key={`line-${index}`} className="mb-2 last:mb-0 text-[15px] leading-relaxed text-gray-800">
+        <p
+          key={`line-${index}`}
+          className="mb-2 last:mb-0 text-[15px] leading-relaxed text-gray-800"
+        >
           {formattedParts}
         </p>
       );
-    } else if (line.trim() === '') {
+    } else if (line.trim() === "") {
       elements.push(<br key={`br-${index}`} />);
     }
   });
@@ -121,7 +127,14 @@ function useChatSession() {
 
 function SendIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" {...props} fill="none" stroke="currentColor" strokeWidth="2">
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      {...props}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
       <path d="M22 2L11 13" />
       <path d="M22 2l-7 20-4-9-9-4 20-7z" />
     </svg>
@@ -142,14 +155,28 @@ export default function RunGearAIChat() {
   const sessionRef = useChatSession();
   const endRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs]);
 
-  const canSend = useMemo(() => input.trim().length > 0 && !sending, [input, sending]);
+  const canSend = useMemo(
+    () => input.trim().length > 0 && !sending,
+    [input, sending]
+  );
 
   const INTENTS = [
-    { label: "Tìm sản phẩm", prompt: "Tìm giúp tôi giày chạy êm chân dưới 1 triệu, size 42." },
-    { label: "Kiểm tra tồn kho", prompt: "Mã RG-TRAIL-01 còn size 42 ở kho không?" },
-    { label: "Voucher/PayOS", prompt: "Hướng dẫn thanh toán PayOS và áp dụng voucher 10%." },
+    {
+      label: "Tìm sản phẩm",
+      prompt: "Tìm giúp tôi giày chạy êm chân dưới 1 triệu, size 42.",
+    },
+    {
+      label: "Kiểm tra tồn kho",
+      prompt: "Mã RG-TRAIL-01 còn size 42 ở kho không?",
+    },
+    {
+      label: "Voucher/PayOS",
+      prompt: "Hướng dẫn thanh toán PayOS và áp dụng voucher 10%.",
+    },
   ];
   const useIntent = (p: string) => {
     setInput(p);
@@ -163,13 +190,21 @@ export default function RunGearAIChat() {
     if (!preset) setInput("");
 
     const userLocalId = crypto.randomUUID?.() ?? String(Date.now());
-    setMsgs((m) => [...m, { id: userLocalId, role: "user", text, rating: null }]);
+    setMsgs((m) => [
+      ...m,
+      { id: userLocalId, role: "user", text, rating: null },
+    ]);
 
     const asstLocalId = crypto.randomUUID?.() ?? String(Date.now() + 1);
-    setMsgs((m) => [...m, { id: asstLocalId, role: "assistant", text: "", rating: null }]);
+    setMsgs((m) => [
+      ...m,
+      { id: asstLocalId, role: "assistant", text: "", rating: null },
+    ]);
     setSending(true);
 
-    const historyForApi = [...msgs, { role: "user" as const, text }].map(({ role, text }) => ({ role, text }));
+    const historyForApi = [...msgs, { role: "user" as const, text }].map(
+      ({ role, text }) => ({ role, text })
+    );
 
     try {
       const res = await fetch("/api/ai/chat", {
@@ -184,16 +219,14 @@ export default function RunGearAIChat() {
 
       // ✅ FIX: Parse JSON response thay vì streaming
       const data = await res.json();
-      
+
       // ✅ CHỈ LẤY FIELD 'text' TỪ RESPONSE
       const aiText = data.text || "Xin lỗi, không nhận được phản hồi.";
 
       // Update message với text đã parse
-      setMsgs((m) => 
-        m.map((msg) => 
-          msg.id === asstLocalId 
-            ? { ...msg, text: aiText }
-            : msg
+      setMsgs((m) =>
+        m.map((msg) =>
+          msg.id === asstLocalId ? { ...msg, text: aiText } : msg
         )
       );
 
@@ -202,33 +235,35 @@ export default function RunGearAIChat() {
         await fetch("/api/ai/log", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            sessionId: sessionRef.current ?? null, 
-            role: "user", 
-            text, 
-            meta: { model: data.model || "gemini-1.5-flash" } 
-          }),
-        });
-      } catch {}
-      
-      try {
-        await fetch("/api/ai/log", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            sessionId: sessionRef.current ?? null, 
-            role: "assistant", 
-            text: aiText, 
-            meta: { model: data.model || "gemini-1.5-flash" } 
+          body: JSON.stringify({
+            sessionId: sessionRef.current ?? null,
+            role: "user",
+            text,
+            meta: { model: data.model || "gemini-1.5-flash" },
           }),
         });
       } catch {}
 
+      try {
+        await fetch("/api/ai/log", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId: sessionRef.current ?? null,
+            role: "assistant",
+            text: aiText,
+            meta: { model: data.model || "gemini-1.5-flash" },
+          }),
+        });
+      } catch {}
     } catch (e) {
       setMsgs((m) =>
         m.map((msg) =>
           msg.id === asstLocalId
-            ? { ...msg, text: "Xin lỗi, hệ thống AI đang bận. Vui lòng thử lại." }
+            ? {
+                ...msg,
+                text: "Xin lỗi, hệ thống AI đang bận. Vui lòng thử lại.",
+              }
             : msg
         )
       );
@@ -262,12 +297,16 @@ export default function RunGearAIChat() {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col min-h-0">
       {/* INTENTS */}
       <div className="px-4 sm:px-5 pt-3 bg-white/60">
         <div className="flex flex-wrap gap-2">
           {INTENTS.map((it) => (
-            <button key={it.label} onClick={() => useIntent(it.prompt)} className="text-xs px-3 py-1.5 rounded-full border bg-white hover:bg-gray-50">
+            <button
+              key={it.label}
+              onClick={() => useIntent(it.prompt)}
+              className="text-xs px-3 py-1.5 rounded-full border bg-white hover:bg-gray-50"
+            >
               {it.label}
             </button>
           ))}
@@ -275,27 +314,62 @@ export default function RunGearAIChat() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-4 bg-gradient-to-b from-white to-gray-50">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-3 space-y-4 bg-gradient-to-b from-white to-gray-50 min-h-0">
         {msgs.map((m) => (
-          <div key={m.id} className={m.role === "user" ? "flex justify-end gap-2" : "flex justify-start gap-2"}>
+          <div
+            key={m.id}
+            className={
+              m.role === "user"
+                ? "flex justify-end gap-2"
+                : "flex justify-start gap-2"
+            }
+          >
             {m.role === "assistant" && (
-              <div className="mr-1 mt-0.5 h-8 w-8 rounded-full bg-indigo-500 text-white grid place-items-center font-bold text-[11px]">AI</div>
+              <div className="mr-1 mt-0.5 h-8 w-8 rounded-full bg-indigo-500 text-white grid place-items-center font-bold text-[11px]">
+                AI
+              </div>
             )}
             {m.role === "user" && (
-              <div className="order-2 ml-1 mt-0.5 h-8 w-8 rounded-full bg-emerald-500 text-white grid place-items-center font-bold text-[11px]">You</div>
+              <div className="order-2 ml-1 mt-0.5 h-8 w-8 rounded-full bg-emerald-500 text-white grid place-items-center font-bold text-[11px]">
+                You
+              </div>
             )}
-            <div className={m.role === "user" ? "max-w-[78%] rounded-2xl rounded-br-sm bg-indigo-600 text-white px-4 py-2 shadow" : "max-w-[78%] rounded-2xl rounded-bl-sm bg-white border px-4 py-2 shadow-sm"}>
+            <div
+              className={
+                m.role === "user"
+                  ? "max-w-[78%] rounded-2xl rounded-br-sm bg-indigo-600 text-white px-4 py-2 shadow"
+                  : "max-w-[78%] rounded-2xl rounded-bl-sm bg-white border px-4 py-2 shadow-sm"
+              }
+            >
               {/* ✅ SỬA: Render với format function cho assistant */}
               {m.role === "user" ? (
-                <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{m.text}</p>
+                <p className="whitespace-pre-wrap text-[15px] leading-relaxed">
+                  {m.text}
+                </p>
               ) : (
                 formatAIResponse(m.text)
               )}
-              
+
               {m.role === "assistant" && (
                 <div className="mt-1 flex items-center gap-1 text-gray-400">
-                  <button onClick={() => rateMessage(m.id, "up")} className={`h-7 w-7 grid place-items-center rounded hover:bg-gray-100 ${m.rating === "up" ? "text-emerald-600" : ""}`} title="Hữu ích">👍</button>
-                  <button onClick={() => rateMessage(m.id, "down")} className={`h-7 w-7 grid place-items-center rounded hover:bg-gray-100 ${m.rating === "down" ? "text-rose-600" : ""}`} title="Chưa ổn">👎</button>
+                  <button
+                    onClick={() => rateMessage(m.id, "up")}
+                    className={`h-7 w-7 grid place-items-center rounded hover:bg-gray-100 ${
+                      m.rating === "up" ? "text-emerald-600" : ""
+                    }`}
+                    title="Hữu ích"
+                  >
+                    👍
+                  </button>
+                  <button
+                    onClick={() => rateMessage(m.id, "down")}
+                    className={`h-7 w-7 grid place-items-center rounded hover:bg-gray-100 ${
+                      m.rating === "down" ? "text-rose-600" : ""
+                    }`}
+                    title="Chưa ổn"
+                  >
+                    👎
+                  </button>
                 </div>
               )}
             </div>
@@ -304,10 +378,17 @@ export default function RunGearAIChat() {
       </div>
 
       {/* Input */}
-      <div className="border-t bg-white/70 backdrop-blur px-4 sm:px-5 py-3">
+      <div
+        className="border-t bg-white/70 backdrop-blur px-4 sm:px-5 py-3"
+        style={{
+          paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
+        }}
+      >
         <div className="flex items-end gap-2">
           <div className="flex-1">
-            <label className="sr-only" htmlFor="rg-ai-input">Nhập câu hỏi</label>
+            <label className="sr-only" htmlFor="rg-ai-input">
+              Nhập câu hỏi
+            </label>
             <textarea
               id="rg-ai-input"
               rows={1}
@@ -315,14 +396,16 @@ export default function RunGearAIChat() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKeyDown}
-              className="w-full resize-y min-h-[44px] max-h-[160px] rounded-xl border border-gray-300 px-4 py-3 text-[15px] shadow focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="w-full resize-y min-h-[44px] max-h-[160px] rounded-xl border border-gray-300 px-4 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-indigo-400"
             />
-            <div className="mt-1 text-[11px] text-gray-500">Enter = gửi • Shift+Enter = xuống dòng • Ctrl/⌘+Enter = gửi</div>
+            <div className="mt-1 text-[11px] text-gray-500">
+              Enter = gửi • Shift+Enter = xuống dòng • Ctrl/⌘+Enter = gửi
+            </div>
           </div>
           <button
             onClick={() => onSend()}
             disabled={!canSend}
-            className="shrink-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 shadow"
+            className="shrink-0 inline-flex mb-6 items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 shadow"
           >
             <SendIcon className="h-5 w-5" />
             Gửi
