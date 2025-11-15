@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { supabaseBrowser } from "@/libs/supabase/supabase-client";
 import { RealtimeChat } from "./realtime-chat";
 import Link from "next/link";
+import { useAuth } from "@/components/auth/AuthContext"; // ✅ 1. DÙNG CONTEXT
 
 type DBMsg = {
   id: string;
