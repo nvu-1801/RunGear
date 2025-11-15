@@ -169,6 +169,53 @@ export default function ChatCenterModal({
               Có vấn đề gì xin liên hệ Zalo:{" "}
               <span className="font-medium">0343628287</span>
             </p>
+            <div className="mt-3 flex items-center gap-3">
+              <a
+                href="https://zalo.me/0389487416"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Chat trên Zalo"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-sm font-medium"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden
+                  className="opacity-90"
+                >
+                  <path
+                    d="M12 2C6.48 2 2 5.58 2 10c0 2.18 1.09 4.19 2.92 5.64L4 22l6.78-2.08C11.58 20 11.79 20 12 20c5.52 0 10-3.58 10-8s-4.48-10-10-10z"
+                    fill="currentColor"
+                  />
+                </svg>
+                Chat Zalo
+              </a>
+
+              <a
+                href="https://m.me/RunGearOfficial"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Chat Fanpage Facebook"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm font-medium"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden
+                  className="opacity-90"
+                >
+                  <path
+                    d="M12 2C6.48 2 2 6.04 2 11c0 2.93 1.64 5.53 4.2 7.07L6 22l4.07-1.84C11.02 20.26 11.51 20.5 12 20.5c5.52 0 10-4.48 10-9.5S17.52 2 12 2z"
+                    fill="currentColor"
+                  />
+                </svg>
+                Fanpage Messenger
+              </a>
+            </div>
           </div>
 
           {/* Body */}
