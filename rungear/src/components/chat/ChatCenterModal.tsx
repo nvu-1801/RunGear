@@ -67,7 +67,7 @@ export default function ChatCenterModal({
       >
         {/* Subtle animated gradient ring */}
         <div className="absolute inset-0 rounded-[28px] bg-gradient-to-br from-indigo-500/25 via-fuchsia-400/15 to-emerald-400/25 animate-[gradientShift_10s_ease_infinite] blur-[2px]" />
-        <div className="relative h-full overflow-hidden rounded-[28px] bg-white/90 shadow-2xl ring-1 ring-black/10 backdrop-blur supports-[backdrop-filter]:bg-white/70">
+        <div className="relative h-full flex flex-col overflow-hidden rounded-[28px] bg-white/90 shadow-2xl ring-1 ring-black/10 backdrop-blur supports-[backdrop-filter]:bg-white/70">
           {/* Header */}
           <div className="border-b border-black/5 bg-white/75 backdrop-blur-sm px-5 py-2 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -219,7 +219,7 @@ export default function ChatCenterModal({
           </div>
 
           {/* Body */}
-          <div className="h-[calc(100%-60px-88px)] bg-gradient-to-b from-white to-gray-50 px-1 sm:px-2 pb-2">
+          <div className="flex-1 min-h-0 bg-gradient-to-b from-white to-gray-50 px-1 sm:px-2 pb-2">
             <section
               role="tabpanel"
               id="panel-ai"
